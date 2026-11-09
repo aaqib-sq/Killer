@@ -1,0 +1,20 @@
+# Gradle
+.gradle/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.DS_Store
+
+# Signing material — never in the tree
+*.jks
+*.keystore
+keystore.properties
+
+# CI scratch
+.ci/
