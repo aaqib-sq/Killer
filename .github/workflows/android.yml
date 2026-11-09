@@ -91,6 +91,22 @@ jobs:
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
           "$APKSIGNER" verify --print-certs "$APK"
 
+          # The APK's own manifest is the truth about identity and SDK floors.
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
+          "$AAPT" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label)" || true
+
+      # The concept forbids invented numbers and force-stop claims. Fail the build
+      # if that vocabulary ever reaches the shipped binary.
+      - name: No forbidden claims in the shipped APK
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          UNZIP=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
+          STRINGS=$("$UNZIP" dump strings "$APK" || true)
+          echo "$STRINGS" | grep -iE "force.?stop|boost|GB freed|RAM" && {
+            echo "::error::forbidden claim found in the APK"; exit 1; } || true
+          echo "no forbidden claims in the APK"
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
