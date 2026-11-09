@@ -93,7 +93,12 @@ jobs:
 
           # The APK's own manifest is the truth about identity and SDK floors.
           AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
-          "$AAPT" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label)" || true
+          BADGING=$("$AAPT" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label)")
+          echo "$BADGING"
+          { echo "## APK identity"; echo '```'; echo "$BADGING"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          echo "$BADGING" | grep -q "package: name='dev.killer'" || { echo "::error::wrong package name"; exit 1; }
+          echo "$BADGING" | grep -q "sdkVersion:'33'" || { echo "::error::wrong minSdk"; exit 1; }
+          echo "$BADGING" | grep -q "targetSdkVersion:'34'" || { echo "::error::wrong targetSdk"; exit 1; }
 
       # The concept forbids invented numbers and force-stop claims. The honest
       # disclaimer ("It never force-stops apps") is allowed; a claim is not.
