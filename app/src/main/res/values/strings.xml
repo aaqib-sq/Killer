@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Killer</string>
+
+    <!-- Accessibility service label shown in Settings > Accessibility -->
+    <string name="a11y_service_label">Killer — close apps from Recents</string>
+    <string name="a11y_service_summary">Closes apps from Recents, in one tap</string>
+    <string name="a11y_service_description">Killer uses this to close apps from Recents when you tap Close All. It never force-stops apps and never reads what is inside them.</string>
+</resources>
