@@ -35,10 +35,36 @@ jobs:
           gradle-version: '8.7'
 
       - name: Unit tests (JVM)
-        run: gradle --no-daemon :app:testDebugUnitTest
+        run: |
+          set -o pipefail
+          gradle --no-daemon :app:testDebugUnitTest 2>&1 | tee gradle-test.log
+
+      # The Actions log endpoint is unreliable; the job summary is always readable
+      # from the API, so compiler errors are published here too.
+      - name: Publish compiler output
+        if: always()
+        run: |
+          {
+            echo "## gradle output"
+            echo '```'
+            grep -E "^e: |^w: |error:|FAILURE|BUILD |Unresolved|Caused by" gradle-test.log | head -n 120 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Assemble debug APK
-        run: gradle --no-daemon :app:assembleDebug
+        run: |
+          set -o pipefail
+          gradle --no-daemon :app:assembleDebug 2>&1 | tee -a gradle-test.log
+
+      - name: Publish build output
+        if: always()
+        run: |
+          {
+            echo "## assemble output"
+            echo '```'
+            grep -E "^e: |^w: |error:|FAILURE|BUILD |Unresolved|Caused by" gradle-test.log | head -n 120 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify the APK exists and is signed
         run: |
