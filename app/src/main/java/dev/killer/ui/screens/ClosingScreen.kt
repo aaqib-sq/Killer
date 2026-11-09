@@ -84,7 +84,7 @@ fun ClosingScreen(
         Text(
             text = if (done) "Finished" else "Closing apps",
             color = KillerColors.TextSecondary,
-            fontSize = KillerType.Pill.sp,
+            fontSize = KillerType.Pill,
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp,
         )
@@ -95,7 +95,8 @@ fun ClosingScreen(
             ProgressRing(progress = if (done) 1f else animated, done = done)
 
             if (done) {
-                AnimatedVisibility(
+                // Explicit receiver: this Box is not a ColumnScope.
+                androidx.compose.animation.AnimatedVisibility(
                     visible = true,
                     enter = fadeIn(tween(KillerMotion.STANDARD_MS)) +
                         scaleIn(tween(KillerMotion.STANDARD_MS), initialScale = 0.96f),
@@ -115,7 +116,7 @@ fun ClosingScreen(
                     Text(
                         text = "${(animated * 100).toInt()}%",
                         color = KillerColors.TextPrimary,
-                        fontSize = KillerType.ClosingPercent.sp,
+                        fontSize = KillerType.ClosingPercent,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = KillerType.TightTracking.sp,
                     )
@@ -123,7 +124,7 @@ fun ClosingScreen(
                     Text(
                         text = "Closing…",
                         color = KillerColors.TextSecondary,
-                        fontSize = KillerType.Pill.sp,
+                        fontSize = KillerType.Pill,
                     )
                 }
             }
@@ -134,7 +135,7 @@ fun ClosingScreen(
         Text(
             text = if (done) "Done. All quiet." else "Closing $currentLabel…",
             color = KillerColors.TextPrimary,
-            fontSize = KillerType.Headline.sp,
+            fontSize = KillerType.Headline,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = KillerType.TightTracking.sp,
             textAlign = TextAlign.Center,
@@ -151,7 +152,7 @@ fun ClosingScreen(
                 "Staying on this screen until it's finished."
             },
             color = KillerColors.TextSecondary,
-            fontSize = KillerType.Body.sp,
+            fontSize = KillerType.Body,
             textAlign = TextAlign.Center,
         )
 

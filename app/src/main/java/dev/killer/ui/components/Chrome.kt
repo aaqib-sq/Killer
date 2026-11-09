@@ -85,7 +85,7 @@ fun Pill(
         Text(
             text = text,
             color = foreground,
-            fontSize = KillerType.Pill.sp,
+            fontSize = KillerType.Pill,
             fontWeight = FontWeight.Bold,
         )
     }
@@ -147,7 +147,7 @@ fun PrimaryButton(
         Text(
             text = label,
             color = if (enabled) KillerColors.TextPrimary else KillerColors.TextMuted,
-            fontSize = KillerType.Button.sp,
+            fontSize = KillerType.Button,
             fontWeight = FontWeight.Bold,
         )
     }
@@ -175,7 +175,7 @@ fun OutlineButton(
         Text(
             text = label,
             color = KillerColors.TextPrimary,
-            fontSize = KillerType.Button.sp,
+            fontSize = KillerType.Button,
             fontWeight = FontWeight.Bold,
         )
     }
@@ -208,7 +208,7 @@ fun SecondaryButton(
         Text(
             text = label,
             color = if (enabled) KillerColors.TextPrimary else KillerColors.TextMuted,
-            fontSize = KillerType.Button.sp,
+            fontSize = KillerType.Button,
             fontWeight = FontWeight.Bold,
         )
     }

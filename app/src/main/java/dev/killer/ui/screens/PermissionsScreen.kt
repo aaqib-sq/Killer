@@ -65,7 +65,7 @@ fun PermissionsScreen(
         Text(
             text = "Two quick permissions. Then you're done.",
             color = KillerColors.TextPrimary,
-            fontSize = KillerType.HeadlineLarge.sp,
+            fontSize = KillerType.HeadlineLarge,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = KillerType.TightTracking.sp,
             lineHeight = 33.sp,
@@ -76,7 +76,7 @@ fun PermissionsScreen(
         Text(
             text = "We explain everything in plain words. Nothing runs in the background without you saying so.",
             color = KillerColors.TextSecondary,
-            fontSize = KillerType.Body.sp,
+            fontSize = KillerType.Body,
             lineHeight = 24.sp,
         )
 
@@ -114,7 +114,7 @@ fun PermissionsScreen(
         Text(
             text = "No account. No ads. No data leaves your phone.",
             color = KillerColors.TextMuted,
-            fontSize = KillerType.Pill.sp,
+            fontSize = KillerType.Pill,
             modifier = Modifier.fillMaxWidth(),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
@@ -163,7 +163,7 @@ private fun PermissionCard(
         Text(
             text = title,
             color = KillerColors.TextPrimary,
-            fontSize = KillerType.CardTitle.sp,
+            fontSize = KillerType.CardTitle,
             fontWeight = FontWeight.ExtraBold,
         )
 
@@ -172,7 +172,7 @@ private fun PermissionCard(
         Text(
             text = body,
             color = KillerColors.TextSecondary,
-            fontSize = KillerType.BodySmall.sp,
+            fontSize = KillerType.BodySmall,
             lineHeight = 22.sp,
         )
 
@@ -192,7 +192,7 @@ private fun PermissionCard(
             Text(
                 text = if (enabled) "Enabled ✓" else "Enable",
                 color = textColor,
-                fontSize = KillerType.Button.sp,
+                fontSize = KillerType.Button,
                 fontWeight = FontWeight.Bold,
             )
         }

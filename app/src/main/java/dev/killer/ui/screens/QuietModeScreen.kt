@@ -88,7 +88,7 @@ fun QuietModeScreen(
         Text(
             text = "What do you want quiet for?",
             color = KillerColors.TextPrimary,
-            fontSize = KillerType.HeadlineLarge.sp,
+            fontSize = KillerType.HeadlineLarge,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = KillerType.TightTracking.sp,
             lineHeight = 33.sp,
@@ -107,7 +107,7 @@ fun QuietModeScreen(
             Text(
                 text = "${apps.size}",
                 color = KillerColors.TextPrimary,
-                fontSize = KillerType.DisplayNumber.sp,
+                fontSize = KillerType.DisplayNumber,
                 fontWeight = FontWeight.ExtraBold,
                 lineHeight = 64.sp,
             )
@@ -115,7 +115,7 @@ fun QuietModeScreen(
             Text(
                 text = "apps making noise",
                 color = KillerColors.TextSecondary,
-                fontSize = KillerType.Body.sp,
+                fontSize = KillerType.Body,
             )
 
             Spacer(Modifier.height(20.dp))
@@ -134,7 +134,7 @@ fun QuietModeScreen(
                 Text(
                     text = "Make it quiet",
                     color = if (closableCount > 0) KillerColors.TextPrimary else KillerColors.TextMuted,
-                    fontSize = KillerType.Button.sp,
+                    fontSize = KillerType.Button,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -144,7 +144,7 @@ fun QuietModeScreen(
             Text(
                 text = "Closes $closableCount • Keeps $keptCount safe",
                 color = KillerColors.TextMuted,
-                fontSize = KillerType.Pill.sp,
+                fontSize = KillerType.Pill,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
@@ -214,13 +214,13 @@ private fun IntentionCard(intention: Intention, selected: Boolean, onClick: () -
         Text(
             text = intention.title,
             color = KillerColors.TextPrimary,
-            fontSize = KillerType.AppName.sp,
+            fontSize = KillerType.AppName,
             fontWeight = FontWeight.ExtraBold,
         )
         Text(
             text = intention.description,
             color = KillerColors.TextSecondary,
-            fontSize = KillerType.Caption.sp,
+            fontSize = KillerType.Caption,
             lineHeight = 20.sp,
         )
 
@@ -229,7 +229,7 @@ private fun IntentionCard(intention: Intention, selected: Boolean, onClick: () -
         Text(
             text = intention.keepLabel,
             color = KillerColors.Amber,
-            fontSize = KillerType.Pill.sp,
+            fontSize = KillerType.Pill,
             fontWeight = FontWeight.Bold,
         )
     }
@@ -263,7 +263,7 @@ private fun KeptSafeCard(
             Text(
                 text = "Kept safe",
                 color = KillerColors.TextPrimary,
-                fontSize = KillerType.Body.sp,
+                fontSize = KillerType.Body,
                 fontWeight = FontWeight.ExtraBold,
             )
             Spacer(Modifier.size(8.dp))
@@ -285,7 +285,7 @@ private fun KeptSafeCard(
                 Text(
                     text = "These stay open because they matter right now.",
                     color = KillerColors.TextSecondary,
-                    fontSize = KillerType.Pill.sp,
+                    fontSize = KillerType.Pill,
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -294,7 +294,7 @@ private fun KeptSafeCard(
                     Text(
                         text = "Nothing needs protecting right now.",
                         color = KillerColors.TextSecondary,
-                        fontSize = KillerType.Caption.sp,
+                        fontSize = KillerType.Caption,
                     )
                 } else {
                     keptRows.forEach { row ->
@@ -305,7 +305,7 @@ private fun KeptSafeCard(
                             Text(
                                 text = row.label,
                                 color = KillerColors.TextPrimary,
-                                fontSize = KillerType.BodySmall.sp,
+                                fontSize = KillerType.BodySmall,
                                 fontWeight = FontWeight.Bold,
                             )
                             Spacer(Modifier.weight(1f))
@@ -319,7 +319,7 @@ private fun KeptSafeCard(
                 Text(
                     text = "See all $totalCount apps",
                     color = KillerColors.TextSecondary,
-                    fontSize = KillerType.Pill.sp,
+                    fontSize = KillerType.Pill,
                     fontWeight = FontWeight.Bold,
                 )
             }

@@ -26,6 +26,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -66,7 +68,7 @@ fun HomeScreen(
             Text(
                 text = "${apps.size} apps running",
                 color = KillerColors.TextPrimary,
-                fontSize = KillerType.HeadlineLarge.sp,
+                fontSize = KillerType.HeadlineLarge,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = KillerType.TightTracking.sp,
                 lineHeight = 32.sp,
@@ -77,7 +79,7 @@ fun HomeScreen(
             Text(
                 text = "Tap one to close it. Or close them all at once.",
                 color = KillerColors.TextSecondary,
-                fontSize = KillerType.Body.sp,
+                fontSize = KillerType.Body,
             )
 
             Spacer(Modifier.height(20.dp))
@@ -148,7 +150,7 @@ private fun AppCard(app: HomeApp, onClose: () -> Unit) {
             Text(
                 text = app.label,
                 color = KillerColors.TextPrimary,
-                fontSize = KillerType.AppName.sp,
+                fontSize = KillerType.AppName,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -156,7 +158,7 @@ private fun AppCard(app: HomeApp, onClose: () -> Unit) {
             Text(
                 text = app.detail(),
                 color = KillerColors.TextSecondary,
-                fontSize = KillerType.Pill.sp,
+                fontSize = KillerType.Pill,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -243,7 +245,7 @@ private fun EmptyState(onQuietMode: () -> Unit) {
                 Text(
                     text = "All quiet.",
                     color = KillerColors.TextPrimary,
-                    fontSize = KillerType.Title.sp,
+                    fontSize = KillerType.Title,
                     fontWeight = FontWeight.ExtraBold,
                 )
 
@@ -252,7 +254,7 @@ private fun EmptyState(onQuietMode: () -> Unit) {
                 Text(
                     text = "Nothing is running in the background.",
                     color = KillerColors.TextSecondary,
-                    fontSize = KillerType.BodySmall.sp,
+                    fontSize = KillerType.BodySmall,
                 )
 
                 Spacer(Modifier.height(16.dp))
@@ -273,7 +275,7 @@ private fun EmptyState(onQuietMode: () -> Unit) {
                     Text(
                         text = "Quiet Mode",
                         color = KillerColors.TextPrimary,
-                        fontSize = KillerType.BodySmall.sp,
+                        fontSize = KillerType.BodySmall,
                         fontWeight = FontWeight.Bold,
                     )
                 }
