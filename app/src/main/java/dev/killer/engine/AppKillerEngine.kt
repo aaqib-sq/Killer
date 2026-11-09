@@ -87,12 +87,12 @@ object AppKillerEngine {
         isPackageStoppedOverride?.let { return it(packageName) }
         return try {
             val pm = context.packageManager
-            val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0L))
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getApplicationInfo(packageName, 0)
-            }
+            // minSdk is 33, so ApplicationInfoFlags always exists; no deprecated
+            // integer overload is needed (it would have to hit a hidden framework id).
+            val appInfo = pm.getApplicationInfo(
+                packageName,
+                PackageManager.ApplicationInfoFlags.of(0L),
+            )
             isStopped(appInfo)
         } catch (_: Exception) {
             false
