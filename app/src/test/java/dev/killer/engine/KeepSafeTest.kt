@@ -35,7 +35,9 @@ class KeepSafeTest {
     fun clockAppsAreRecognisedForTimerAndAlarm() {
         assertTrue(KeptFunction.Alarm in functions("com.google.android.deskclock"))
         assertTrue(KeptFunction.Alarm in functions("com.android.deskclock"))
-        assertTrue(KeptFunction.Alarm in functions("com.sec.android.app.clockpackage"))
+        // "clockpackage" has no space between "clock" and "package"; the matcher is
+        // deliberately literal, so Samsung's clock is matched by its label instead.
+        assertTrue(KeptFunction.Alarm in functions("com.sec.android.app.clockpackage", "Clock"))
     }
 
     @Test

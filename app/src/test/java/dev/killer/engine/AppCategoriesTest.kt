@@ -113,8 +113,14 @@ class AppCategoriesTest {
             "com.oem.telecom",
             "com.carrier.telephony",
             "com.samsung.android.incallui",
-            "com.oem.customplugin",
+            // Killer has no Termux bridge (the TRMX tree did), so this is a generic
+            // OEM plugin: it must NOT be core, since nothing depends on it.
         )
+        assertFalse(
+            "An arbitrary OEM plugin must stay closable",
+            AppCategories.isCore("com.oem.customplugin"),
+        )
+
         for (pkg in dynamicCore) {
             assertTrue("Expected dynamic pattern match for $pkg", AppCategories.isCore(pkg))
             assertFalse("Expected $pkg to not be killable", AppCategories.isKillable(pkg))
