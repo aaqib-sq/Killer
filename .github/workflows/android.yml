@@ -95,16 +95,24 @@ jobs:
           AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
           "$AAPT" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label)" || true
 
-      # The concept forbids invented numbers and force-stop claims. Fail the build
-      # if that vocabulary ever reaches the shipped binary.
+      # The concept forbids invented numbers and force-stop claims. The honest
+      # disclaimer ("It never force-stops apps") is allowed; a claim is not.
       - name: No forbidden claims in the shipped APK
         run: |
           set -euo pipefail
           APK=$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)
-          UNZIP=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
-          STRINGS=$("$UNZIP" dump strings "$APK" || true)
-          echo "$STRINGS" | grep -iE "force.?stop|boost|GB freed|RAM" && {
-            echo "::error::forbidden claim found in the APK"; exit 1; } || true
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
+          # Dump only the string resources that ship to the user, then drop the
+          # negated disclaimers, which are the opposite of a claim.
+          "$AAPT" dump strings "$APK" \
+            | sed -E 's/(never|no|not)[[:space:]]+force[[:space:]]*-?[[:space:]]*stops?//Ig' \
+            > /tmp/shipped-strings.txt
+          if grep -inE "force[[:space:]]*-?[[:space:]]*stop|boost|gb freed|free[[:space:]]+up" /tmp/shipped-strings.txt; then
+            echo "::error::forbidden claim found in the APK"; exit 1
+          fi
+          if grep -nE "\bRAM\b|\bMB\b" /tmp/shipped-strings.txt; then
+            echo "::error::memory figure in the APK"; exit 1
+          fi
           echo "no forbidden claims in the APK"
 
       - name: Upload debug APK
