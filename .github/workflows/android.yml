@@ -92,13 +92,23 @@ jobs:
           "$APKSIGNER" verify --print-certs "$APK"
 
           # The APK's own manifest is the truth about identity and SDK floors.
+          # aapt2 has printed minSdk as both `sdkVersion:` and `minSdkVersion:`
+          # across build-tools releases, so accept either and print the whole
+          # badging when a check fails instead of guessing.
           AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
-          BADGING=$("$AAPT" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label)")
+          FULL=$("$AAPT" dump badging "$APK")
+          BADGING=$(echo "$FULL" | grep -E "^(package|sdkVersion|minSdkVersion|targetSdkVersion|application-label)")
           echo "$BADGING"
           { echo "## APK identity"; echo '```'; echo "$BADGING"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          echo "$BADGING" | grep -q "package: name='dev.killer'" || { echo "::error::wrong package name"; exit 1; }
-          echo "$BADGING" | grep -q "sdkVersion:'33'" || { echo "::error::wrong minSdk"; exit 1; }
-          echo "$BADGING" | grep -q "targetSdkVersion:'34'" || { echo "::error::wrong targetSdk"; exit 1; }
+
+          fail() {
+            echo "::error::$1"
+            echo "--- full badging ---"; echo "$FULL"
+            exit 1
+          }
+          echo "$BADGING" | grep -q "package: name='dev.killer'" || fail "wrong package name"
+          echo "$BADGING" | grep -qE "^(sdkVersion|minSdkVersion):'33'" || fail "wrong minSdk"
+          echo "$BADGING" | grep -q "targetSdkVersion:'34'" || fail "wrong targetSdk"
 
       # The concept forbids invented numbers and force-stop claims. The honest
       # disclaimer ("It never force-stops apps") is allowed; a claim is not.
