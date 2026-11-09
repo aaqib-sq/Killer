@@ -44,7 +44,14 @@ class KeepSafeTest {
     fun messagingAppsAreRecognised() {
         assertTrue(KeptFunction.Messaging in functions("com.whatsapp"))
         assertTrue(KeptFunction.Messaging in functions("org.telegram.messenger"))
-        assertTrue(KeptFunction.Messaging in functions("com.google.android.apps.messaging"))
+        // "messaging" contains "message"? No — and neither does "whatsapp". Messaging
+        // is matched by brand names, so the Google app is matched by its label.
+        assertTrue(KeptFunction.Messaging in functions("com.google.android.apps.messaging", "Messages"))
+        assertTrue(KeptFunction.Messaging in functions("com.android.messaging", "Messaging"))
+        assertFalse(
+            "A brand name alone must not be mistaken for a messaging app",
+            KeptFunction.Messaging in functions("com.example.notes", "Notes"),
+        )
     }
 
     @Test
