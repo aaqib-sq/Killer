@@ -96,7 +96,8 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(KillerDimens.BetweenCards),
                 ) {
                     items(apps, key = { it.packageName }) { app ->
-                        AnimatedVisibility(
+                        // Explicit receiver: LazyItemScope is not a ColumnScope.
+                        androidx.compose.animation.AnimatedVisibility(
                             visible = true,
                             enter = fadeIn(tween(KillerMotion.STANDARD_MS)) +
                                 slideInVertically(tween(KillerMotion.STANDARD_MS)) { it / 6 },

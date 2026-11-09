@@ -10,7 +10,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
-import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
 /**
@@ -29,13 +28,14 @@ private fun lucide(
     viewportHeight = 24f,
 ).apply {
     paths.forEach { d ->
-        path(
+        // Lucide geometry, drawn as a 2dp round-capped stroke.
+        addPath(
             pathData = addPathNodes(d),
-            fill = null,
-            stroke = SolidColor(Color.Black), // tinted at draw time
+            stroke = SolidColor(Color.Black), // tinted at draw time by Icon(tint=…)
             strokeLineWidth = 2f,
             strokeLineCap = StrokeCap.Round,
             strokeLineJoin = StrokeJoin.Round,
+            fill = null,
         )
     }
 }.build()
