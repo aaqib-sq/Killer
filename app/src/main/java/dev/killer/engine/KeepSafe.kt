@@ -94,7 +94,8 @@ object KeepSafe {
         }
         if (has("clock", "alarm", "deskclock", "timer")) out += KeptFunction.Alarm
         if (has("maps", "nav", "waze", "gps", "geo")) out += KeptFunction.Maps
-        if (has("message", "sms", "chat", "whatsapp", "telegram", "signal", "messenger", "discord", "slack")) {
+        // "messag" is the shared stem of message / messages / messaging.
+        if (has("messag", "sms", "chat", "whatsapp", "telegram", "signal", "discord", "slack")) {
             out += KeptFunction.Messaging
         }
         if (has("dialer", "phone", "telecom", "incallui")) out += KeptFunction.PhoneCall
