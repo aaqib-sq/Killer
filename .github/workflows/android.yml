@@ -52,8 +52,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           # Annotations are readable from the check-runs API even when the raw
           # job log blob cannot be fetched.
-          grep -E "^e: |^error:|Unresolved reference|FAILURE: Build" gradle-test.log \
-            | head -n 20 | while IFS= read -r line; do echo "::error::$line"; done || true
+          # FIRST the lines after "What went wrong", then compiler errors, then anything test-ish.
+          {
+            awk '/What went wrong/,/Try:/' gradle-test.log | head -n 25
+            grep -E "^e: |^error:" gradle-test.log | head -n 10
+            grep -E "[0-9]+ tests? completed|FAILED|AssertionError|expected:" gradle-test.log | head -n 20
+          } | while IFS= read -r line; do echo "::error::$(echo "$line" | cut -c1-900)"; done || true
 
       - name: Assemble debug APK
         run: |
@@ -71,8 +75,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           # Annotations are readable from the check-runs API even when the raw
           # job log blob cannot be fetched.
-          grep -E "^e: |^error:|Unresolved reference|FAILURE: Build" gradle-test.log \
-            | head -n 20 | while IFS= read -r line; do echo "::error::$line"; done || true
+          # FIRST the lines after "What went wrong", then compiler errors, then anything test-ish.
+          {
+            awk '/What went wrong/,/Try:/' gradle-test.log | head -n 25
+            grep -E "^e: |^error:" gradle-test.log | head -n 10
+            grep -E "[0-9]+ tests? completed|FAILED|AssertionError|expected:" gradle-test.log | head -n 20
+          } | while IFS= read -r line; do echo "::error::$(echo "$line" | cut -c1-900)"; done || true
 
       - name: Verify the APK exists and is signed
         run: |
