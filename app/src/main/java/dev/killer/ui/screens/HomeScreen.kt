@@ -61,6 +61,7 @@ fun HomeScreen(
 
         Column(modifier = Modifier.padding(horizontal = KillerDimens.PagePadding)) {
             Spacer(Modifier.height(3.dp))
+            // Header keeps the concept's exact chrome: logo + wordmark + "{n} running".
             KillerHeader(trailingPill = "${apps.size} running", markSize = 32, wordmarkSize = 19)
 
             Spacer(Modifier.height(24.dp))
@@ -81,6 +82,30 @@ fun HomeScreen(
                 color = KillerColors.TextSecondary,
                 fontSize = KillerType.Body,
             )
+
+            Spacer(Modifier.height(12.dp))
+
+            // Quiet Mode is the concept's alternative Home; this is its front door.
+            val (quietScale, quietInteraction) = tapScale()
+            Row(
+                modifier = Modifier
+                    .height(KillerDimens.MinTapTarget)
+                    .then(quietScale)
+                    .clip(RoundedCornerShape(KillerDimens.ButtonRadius))
+                    .background(KillerColors.Surface2)
+                    .clickableNoRipple(true, quietInteraction, onQuietMode)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                KillerIcons.Draw(KillerIcons.Moon, 15, KillerColors.TextSecondary)
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    text = "Quiet Mode",
+                    color = KillerColors.TextPrimary,
+                    fontSize = KillerType.Pill,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
 
             Spacer(Modifier.height(20.dp))
         }

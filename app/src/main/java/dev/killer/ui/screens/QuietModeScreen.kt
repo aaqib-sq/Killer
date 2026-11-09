@@ -58,6 +58,7 @@ fun QuietModeScreen(
     onToggleKeptSafe: () -> Unit,
     onUnkeep: (String) -> Unit,
     onMakeItQuiet: () -> Unit,
+    onBack: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -76,10 +77,24 @@ fun QuietModeScreen(
             Spacer(Modifier.size(8.dp))
             Wordmark(fontSize = 19)
             Spacer(Modifier.weight(1f))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            val (backScale, backInteraction) = tapScale()
+            Row(
+                modifier = Modifier
+                    .then(backScale)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(KillerColors.Surface2)
+                    .clickableNoRipple(true, backInteraction, onBack)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 KillerIcons.Draw(KillerIcons.Moon, 13, KillerColors.TextSecondary)
                 Spacer(Modifier.size(4.dp))
-                Pill(text = "Quiet Mode")
+                Text(
+                    text = "Quiet Mode",
+                    color = KillerColors.TextSecondary,
+                    fontSize = KillerType.Pill,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         }
 
@@ -316,8 +331,9 @@ private fun KeptSafeCard(
 
                 Spacer(Modifier.height(4.dp))
 
+                // Concept wording, verbatim: "See all {n} apps →".
                 Text(
-                    text = "See all $totalCount apps",
+                    text = "See all $totalCount apps →",
                     color = KillerColors.TextSecondary,
                     fontSize = KillerType.Pill,
                     fontWeight = FontWeight.Bold,

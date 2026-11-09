@@ -106,6 +106,7 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         onToggleKeptSafe = viewModel::toggleKeptSafe,
                         onUnkeep = viewModel::unkeep,
                         onMakeItQuiet = viewModel::makeItQuiet,
+                        onBack = viewModel::goHome,
                     )
                 }
             }
