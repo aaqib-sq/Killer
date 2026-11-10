@@ -70,6 +70,10 @@ fun ClosingScreen(
     undoSecondsLeft: Int,
     /** False when the progress overlay could not be shown (usually the "Display over other apps" permission is off on this install) — the Done screen says so plainly. */
     overlayAvailable: Boolean,
+    /** How many times the overlay had to be brought back mid-loop (Slice 8). */
+    overlayReshows: Int,
+    /** Unusual overlay hide() calls during this run. */
+    overlayHideLog: List<String>,
     onCancel: () -> Unit,
     onBackHome: () -> Unit,
     onUndo: () -> Unit,
@@ -180,6 +184,22 @@ fun ClosingScreen(
         if (done && !overlayAvailable) {
             Text(
                 text = "Progress overlay off tha — 'Display over other apps' on karo, warna progress sirf beech mein dikhega.",
+                color = KillerColors.TextSecondary,
+                fontSize = KillerType.Body,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (done && overlayReshows > 0) {
+            Text(
+                text = "Overlay $overlayReshows baar gayab hua — har baar wapas laya gaya.",
+                color = KillerColors.TextSecondary,
+                fontSize = KillerType.Body,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (done && overlayHideLog.isNotEmpty()) {
+            Text(
+                text = "Overlay hataya gaya: ${overlayHideLog.first()}",
                 color = KillerColors.TextSecondary,
                 fontSize = KillerType.Body,
                 textAlign = TextAlign.Center,

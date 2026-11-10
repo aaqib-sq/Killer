@@ -190,6 +190,16 @@ class ClosingOverlayController(
     private var overlayView: View? = null
     private var overlayOwner: OverlayLifecycleOwner? = null
     private var collectJob: Job? = null
+    /** True once closing asked for the overlay (permission was granted). */
+    private var overlayRequested = false
+    /** True while a showAndAwait is in flight — keeps ensureShown from racing it. */
+    private var showInFlight = false
+    /** How many times the window had to be brought back mid-loop (Slice 8). */
+    var reshowCount: Int = 0
+        private set
+    /** Every hide() call, with the app it happened on — the Done screen reports the unusual ones. */
+    private val hideLog = mutableListOf<String>()
+    val hideEvents: List<String> get() = hideLog.toList()
 
     /**
      * Shows the window and suspends until it is drawn (or a short timeout
@@ -198,9 +208,12 @@ class ClosingOverlayController(
      */
     suspend fun showAndAwait(): Boolean = withContext(Dispatchers.Main) {
         if (overlayView != null) return@withContext true
+        if (showInFlight) return@withContext false
         val permitted = hasOverlayPermission(appContext)
         Log.d(TAG, "showAndAwait: overlay permission granted=$permitted")
         if (!permitted) return@withContext false
+        overlayRequested = true
+        showInFlight = true
         try {
             val view = ComposeView(appContext)
             // The window has no Activity, so Compose needs its owners set
@@ -265,6 +278,35 @@ class ClosingOverlayController(
             Log.d(TAG, "showAndAwait: failed, falling back to in-app screen")
             hide("show-failed")
             false
+        } finally {
+            showInFlight = false
+        }
+    }
+
+    /** Clears the per-run counters before a new closing run starts. */
+    fun resetRunStats() {
+        reshowCount = 0
+        hideLog.clear()
+    }
+
+    /**
+     * Self-healing (Slice 8): if the window was requested but is gone — the
+     * system took it, or a hide() ran mid-loop — bring it back. Called from
+     * every onProgress, so the overlay returns at the next app at the latest.
+     * Safe to call from any thread; a no-op when the overlay was never
+     * requested or is still attached.
+     */
+    fun ensureShown() {
+        if (!overlayRequested) return
+        if (overlayView?.isAttachedToWindow == true) return
+        scope.launch {
+            if (overlayView?.isAttachedToWindow == true) return@launch
+            Log.d(TAG, "ensureShown: window gone, bringing it back (reshow #${reshowCount + 1})")
+            hide("ensure-reshow")
+            if (showAndAwait()) {
+                reshowCount++
+                Log.d(TAG, "ensureShown: window back, reshowCount=$reshowCount")
+            }
         }
     }
 
@@ -275,6 +317,7 @@ class ClosingOverlayController(
             Handler(Looper.getMainLooper()).post { hide(reason) }
             return
         }
+        hideLog += "$reason @ app ${state.value.closingIndex}/${state.value.closingTotal}"
         collectJob?.cancel()
         collectJob = null
         overlayOwner?.onDestroy()
