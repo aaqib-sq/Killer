@@ -25,7 +25,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
-import dev.killer.ui.screens.DiagnosticsScreen
 import dev.killer.ui.screens.ClosingScreen
 import dev.killer.ui.screens.HomeScreen
 import dev.killer.ui.screens.PermissionsScreen
@@ -34,17 +33,16 @@ import dev.killer.ui.theme.KillerMotion
 import kotlinx.coroutines.delay
 
 /**
- * Navigation across exactly four screens. No nav library: four destinations and
+ * Navigation across exactly three screens. No nav library: three destinations and
  * one back rule is less machinery than a graph.
  */
 @Composable
 fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = state.screen == Screen.Closing || state.screen == Screen.Diagnostics) {
+    BackHandler(enabled = state.screen == Screen.Closing) {
         when (state.screen) {
             Screen.Closing -> if (state.phase == ClosingPhase.Running) viewModel.cancelClosing() else viewModel.goHome()
-            Screen.Diagnostics -> viewModel.goHome()
             Screen.Permissions -> if (state.usageAccess && state.accessibility) viewModel.continueFromPermissions()
             Screen.Home -> Unit
         }
@@ -112,7 +110,6 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         onClearOther = viewModel::clearOther,
                         onCloseSelected = viewModel::closeSelectedOther,
                         onRefresh = viewModel::loadApps,
-                        onDiagnostics = viewModel::openDiagnostics,
                         runningCount = state.apps.size,
                         closableCount = state.closable.size,
                         loading = state.loading,
@@ -139,7 +136,6 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         onUndo = viewModel::undo,
                     )
 
-                    Screen.Diagnostics -> DiagnosticsScreen(state.diagnostics, viewModel::openDiagnostics, viewModel::goHome)
                 }
             }
         }

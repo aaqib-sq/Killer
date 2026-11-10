@@ -10,37 +10,27 @@ import android.media.AudioManager
  * TRMX engine.
  *
  * TRMX's "safe list" was a static set of package names (AppCategories.CORE_PACKAGES).
- * Killer keeps that blocklist untouched and adds the live rules: music playing,
- * navigating, on a call, timer, alarm, download, itself.
+ * Killer keeps that blocklist untouched. Slice 6 (2026-11-10, the user's
+ * decision): the live rules below NO LONGER lock any app. Music, navigation,
+ * calls, timers, alarms and downloads never block closing — every app is
+ * closable and the user chooses what to close. Only the core blocklist
+ * (Killer itself, SystemUI, Settings, the launcher) stays absolute: closing
+ * those would break the phone's own screen, not just an app.
  *
- * Every rule reads a real system signal. Nothing is estimated, nothing is invented.
+ * The live-signal helpers and the reason vocabulary stay as tested utilities;
+ * they no longer gate closing.
  */
 object KeepSafe {
 
     /**
      * Why [packageName] must stay open right now, or null when it may be closed.
-     * Called from the ViewModel for every detected app; the answer is shown on the
-     * card ("Music playing, 18 min") and enforced again inside the engine.
+     * Only Killer itself and the extracted engine's core blocklist are ever
+     * kept; every other app returns null and is closable.
      */
     fun reasonToKeep(context: Context, packageName: String, label: String): KeepReason? {
         if (packageName == context.packageName) return KeepReason.KillerItself
         // The extracted engine's blocklist is absolute: a core package is never closed.
         if (AppCategories.isCore(packageName)) return KeepReason.KillerItself
-
-        val functions = functionsOf(packageName, label)
-
-        // AudioManager reports device-wide activity, not the originating app. Keep
-        // every candidate while audio/call is active rather than guess a package.
-        if (isCallActive(context)) return KeepReason.CallActive
-        if (isMusicActive(context)) return KeepReason.AudioActive
-        // Android does not expose every app's navigation or timer state. A possible
-        // maps/clock app is kept conservatively; labels describe uncertainty.
-        if (KeptFunction.Maps in functions) return KeepReason.PossibleNavigation
-        if (KeptFunction.Alarm in functions) return KeepReason.PossibleTimer
-        if (pendingAlarmOwner(context) == packageName) return KeepReason.Alarm
-        // DownloadManager only exposes this app's downloads; no cross-app attribution
-        // is claimed. Keep apps with download-related names as a conservative fallback.
-        if (packageName.contains("download", ignoreCase = true)) return KeepReason.PossibleDownload
         return null
     }
 

@@ -69,7 +69,6 @@ fun HomeScreen(
     onClearOther: () -> Unit,
     onCloseSelected: () -> Unit,
     onRefresh: () -> Unit,
-    onDiagnostics: () -> Unit,
     runningCount: Int,
     closableCount: Int,
     loading: Boolean,
@@ -122,18 +121,20 @@ fun HomeScreen(
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(value = query, onValueChange = onQuery, singleLine = true,
                 label = { Text("Search apps or packages") }, modifier = Modifier.fillMaxWidth())
-            // Select controls sit above the list, on Running and Other alike.
+            // One toggle button above the list, on Running and Other alike:
+            // it selects all, and the same button deselects all.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (tab == AppTab.Running) {
-                    TextButton(onClick = onSelectRunning) { Text("Select all") }
-                    TextButton(onClick = onClearRunning) { Text("Clear") }
+                    TextButton(onClick = if (selectedRunning.isNotEmpty()) onClearRunning else onSelectRunning) {
+                        Text(if (selectedRunning.isNotEmpty()) "Deselect all" else "Select all")
+                    }
                 }
                 if (tab == AppTab.Other) {
-                    TextButton(onClick = onSelectOther) { Text("Select all") }
-                    TextButton(onClick = onClearOther) { Text("Clear") }
+                    TextButton(onClick = if (selectedOther.isNotEmpty()) onClearOther else onSelectOther) {
+                        Text(if (selectedOther.isNotEmpty()) "Deselect all" else "Select all")
+                    }
                 }
                 TextButton(onClick = onRefresh) { Text("Refresh") }
-                TextButton(onClick = onDiagnostics) { Text("Diagnostics") }
             }
         }
 

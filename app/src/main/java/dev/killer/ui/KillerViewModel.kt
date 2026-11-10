@@ -22,8 +22,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Exactly four screens. No nav library: four destinations and one back rule is less machinery than a graph. */
-enum class Screen { Permissions, Home, Closing, Diagnostics }
+/** Exactly three screens. No nav library: three destinations and one back rule is less machinery than a graph. */
+enum class Screen { Permissions, Home, Closing }
 enum class AppTab { Running, Other, Core }
 
 /** Closing screen phases, matching the concept's idle → running → done. */
@@ -65,7 +65,6 @@ data class KillerUiState(
     val keptSafeCount: Int = 0,
     val skippedCount: Int = 0,
     val skippedDetails: List<String> = emptyList(),
-    val diagnostics: dev.killer.engine.KillerDiagnosticData? = null,
     val undoSecondsLeft: Int = 0,
     val undoAvailable: Boolean = false,
     val toast: String? = null,
@@ -234,14 +233,6 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setTab(tab: AppTab) = _state.update { it.copy(tab = tab) }
-
-    fun openDiagnostics() {
-        _state.update { it.copy(screen = Screen.Diagnostics, diagnostics = null) }
-        viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { AppKillerEngine.loadDiagnosticData(context) }
-            _state.update { it.copy(diagnostics = result) }
-        }
-    }
 
     fun showToast(text: String?) = _state.update { it.copy(toast = text) }
 
