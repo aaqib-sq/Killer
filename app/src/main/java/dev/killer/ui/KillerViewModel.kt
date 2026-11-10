@@ -68,6 +68,10 @@ data class KillerUiState(
     val skippedDetails: List<String> = emptyList(),
     /** True when the progress overlay window was actually shown for this run. False means closing fell back to the in-app screen (usually the overlay permission is off on this install) — the Done screen says so. */
     val overlayAvailable: Boolean = false,
+    /** How many times the overlay had to be brought back mid-loop (Slice 8). */
+    val overlayReshows: Int = 0,
+    /** Unusual overlay hide() calls during this run (expected "done"/"finally" excluded) — the Done screen reports them. */
+    val overlayHideLog: List<String> = emptyList(),
     val undoSecondsLeft: Int = 0,
     val undoAvailable: Boolean = false,
     val toast: String? = null,
@@ -280,6 +284,9 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 skippedCount = 0,
                 skippedDetails = emptyList(),
                 keptSafeCount = kept.size,
+                overlayAvailable = false,
+                overlayReshows = 0,
+                overlayHideLog = emptyList(),
                 undoAvailable = false,
                 undoSecondsLeft = 0,
             )
@@ -292,8 +299,10 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 // this returns false at once and closing falls back to the
                 // in-app Closing screen, exactly as before. The result is kept
                 // in state so the Done screen can say plainly when the overlay
-                // was off (Slice 6 diagnosis: the overlay was never on screen,
-                // most likely the permission was lost on reinstall).
+                // was off. (Slice 7 blamed the permission; the user confirmed
+                // it is ON — "Appear on top" — and the bug stayed, so the
+                // overlay's fate is now tracked per run instead of guessed.)
+                overlayController.resetRunStats()
                 val overlayShown = overlayController.showAndAwait()
                 Log.d("Killer", "startClosing: overlay shown=$overlayShown")
                 _state.update { it.copy(overlayAvailable = overlayShown) }
@@ -312,6 +321,9 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                         onProgress = { p ->
                             val fraction = if (p.total == 0) 0f else (p.current - 1).toFloat() / p.total
                             Log.d("Killer", "progress: app ${p.current}/${p.total} ${p.currentLabel}")
+                            // Slice 8: if the overlay window vanished mid-loop, bring it
+                            // back now — the next app's Settings must never be visible.
+                            overlayController.ensureShown()
                             _state.update {
                                 it.copy(
                                     closingIndex = p.current,
@@ -339,6 +351,10 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                         skippedCount = report.skipped.count { it.second != "Protected" },
                         skippedDetails = report.skipped.map { (pkg, reason) -> "${labels[pkg] ?: pkg}: $reason" },
                         keptSafeCount = kept.size + report.skipped.count { it.second == "Protected" },
+                        overlayReshows = overlayController.reshowCount,
+                        overlayHideLog = overlayController.hideEvents.filter {
+                            !it.startsWith("done") && !it.startsWith("finally")
+                        },
                         undoAvailable = report.killed.isNotEmpty(),
                         undoSecondsLeft = if (report.killed.isNotEmpty()) 5 else 0,
                     )
