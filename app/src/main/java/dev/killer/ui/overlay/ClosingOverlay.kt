@@ -16,7 +16,6 @@ import android.view.ViewTreeObserver
 import android.view.WindowManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +57,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import dev.killer.R
 import dev.killer.ui.KillerUiState
+import dev.killer.ui.components.DepthHalo
 import dev.killer.ui.components.OutlineButton
 import dev.killer.ui.theme.KillerColors
 import dev.killer.ui.theme.KillerDimens
@@ -418,27 +418,21 @@ class ClosingOverlayController(
  */
 @Composable
 private fun OverlayCard(ui: OverlayUiState, onCancel: () -> Unit) {
-    Column(
+    // Slice 10: the depth canvas — true black + red halo behind the content.
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(KillerColors.Background)
-            // Slice 9 TEST MARKER: a coral border + label, so the next device
-            // video proves whether the window on screen is the overlay at all.
-            // Remove once the accessibility overlay is verified on device.
-            .border(4.dp, KillerColors.Coral)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(horizontal = KillerDimens.PagePadding),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .background(KillerColors.Background),
     ) {
-        Text(
-            text = "OVERLAY · test",
-            color = KillerColors.Coral,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-        )
-
+        DepthHalo()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = KillerDimens.PagePadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         Spacer(Modifier.height(32.dp))
 
         Text(
@@ -503,6 +497,7 @@ private fun OverlayCard(ui: OverlayUiState, onCancel: () -> Unit) {
         OutlineButton(label = "Cancel", onClick = onCancel, height = 56)
 
         Spacer(Modifier.height(20.dp))
+        }
     }
 }
 
@@ -525,7 +520,7 @@ private fun OverlaySeekLine(progress: Float) {
                 .fillMaxWidth(progress.coerceIn(0f, 1f))
                 .height(8.dp)
                 .clip(RoundedCornerShape(percent = 50))
-                .background(KillerColors.Coral),
+                .background(KillerColors.Accent),
         )
     }
 }
@@ -549,7 +544,7 @@ private fun OverlayRing(progress: Float) {
             style = Stroke(width = stroke),
         )
         drawArc(
-            color = KillerColors.Coral,
+            color = KillerColors.Accent,
             startAngle = -90f,
             sweepAngle = 360f * progress.coerceIn(0f, 1f),
             useCenter = false,

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.killer.ui.components.KillerHeader
+import dev.killer.ui.components.DepthHalo
 import dev.killer.ui.components.clickableNoRipple
 import dev.killer.ui.components.PrimaryButton
 import dev.killer.ui.components.tapScale
@@ -56,13 +57,19 @@ fun PermissionsScreen(
     // The overlay permission is optional: Continue only needs the first two.
     val both = usageAccess && accessibility
 
-    Column(
+    // Slice 10: the depth canvas — true black + red halo behind the content.
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(KillerColors.Background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = KillerDimens.PagePadding),
+            .background(KillerColors.Background),
     ) {
+        DepthHalo()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = KillerDimens.PagePadding),
+        ) {
         Spacer(Modifier.height(12.dp))
         KillerHeader(trailingPill = "Setup • 1 of 1")
 
@@ -136,6 +143,7 @@ fun PermissionsScreen(
         )
 
         Spacer(Modifier.height(24.dp))
+        }
     }
 }
 
@@ -148,7 +156,7 @@ private fun PermissionCard(
     onEnable: () -> Unit,
 ) {
     val buttonBackground by animateColorAsState(
-        targetValue = if (enabled) KillerColors.Mint else KillerColors.Coral,
+        targetValue = if (enabled) KillerColors.Mint else KillerColors.Accent,
         animationSpec = tween(KillerMotion.STANDARD_MS),
         label = "permissionButton",
     )
