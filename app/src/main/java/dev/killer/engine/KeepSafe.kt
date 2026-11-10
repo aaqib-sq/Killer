@@ -6,12 +6,12 @@ import android.content.Context
 import android.media.AudioManager
 
 /**
- * Keep Safe — the automatic protection layer the brief requires, built on top of
- * the extracted TRMX engine.
+ * Keep Safe — the automatic protection layer, built on top of the extracted
+ * TRMX engine.
  *
  * TRMX's "safe list" was a static set of package names (AppCategories.CORE_PACKAGES).
- * Killer keeps that blocklist untouched and adds the seven live rules the concept
- * promises: music playing, navigating, on a call, timer, alarm, download, itself.
+ * Killer keeps that blocklist untouched and adds the live rules: music playing,
+ * navigating, on a call, timer, alarm, download, itself.
  *
  * Every rule reads a real system signal. Nothing is estimated, nothing is invented.
  */
@@ -42,12 +42,6 @@ object KeepSafe {
         // is claimed. Keep apps with download-related names as a conservative fallback.
         if (packageName.contains("download", ignoreCase = true)) return KeepReason.PossibleDownload
         return null
-    }
-
-    /** Whether an app survives a specific intention (the three Quiet Mode cards). */
-    fun keptByIntention(packageName: String, label: String, intention: Intention): Boolean {
-        val functions = functionsOf(packageName, label)
-        return functions.any { it in intention.keeps }
     }
 
     // ----------------------------------------------------------- live signals
@@ -132,42 +126,5 @@ enum class KeepReason(val label: String) {
     PossibleDownload("May be downloading"),
 }
 
-/** The functions an intention can protect. */
+/** The functions Keep Safe can recognise for automatic protection. */
 enum class KeptFunction { Music, Notes, Alarm, Maps, Messaging, PhoneCall }
-
-/**
- * The three Quiet Mode cards. Copy is the concept's, verbatim.
- */
-enum class Intention(
-    val id: String,
-    val title: String,
-    val description: String,
-    val keepLabel: String,
-    val keeps: Set<KeptFunction>,
-    val emoji: String,
-) {
-    Focus(
-        id = "focus",
-        title = "Focus",
-        description = "Quiet everything except what helps you focus.",
-        keepLabel = "Keeps Music + Notes",
-        keeps = setOf(KeptFunction.Music, KeptFunction.Notes),
-        emoji = "🎯",
-    ),
-    Bedtime(
-        id = "bedtime",
-        title = "Bedtime",
-        description = "Wind down. Only the essentials stay awake.",
-        keepLabel = "Keeps Alarm + Music",
-        keeps = setOf(KeptFunction.Alarm, KeptFunction.Music),
-        emoji = "🌙",
-    ),
-    BatterySaver(
-        id = "battery",
-        title = "Getting home",
-        description = "Keep what gets you home.",
-        keepLabel = "Keeps Maps + Messages",
-        keeps = setOf(KeptFunction.Maps, KeptFunction.Messaging),
-        emoji = "🔋",
-    ),
-}

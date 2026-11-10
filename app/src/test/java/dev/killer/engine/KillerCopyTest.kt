@@ -25,11 +25,6 @@ class KillerCopyTest {
     fun forbiddenClaimsNeverAppearInCopy() {
         val allCopy = buildString {
             KeepReason.entries.forEach { append(it.label).append(' ') }
-            Intention.entries.forEach {
-                append(it.title).append(' ')
-                append(it.description).append(' ')
-                append(it.keepLabel).append(' ')
-            }
         }.lowercase()
 
         // No boosting or fake memory numbers. Honest force-stop wording is allowed.
