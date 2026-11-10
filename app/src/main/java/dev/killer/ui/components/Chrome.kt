@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -55,13 +58,13 @@ fun KillerMark(size: Int, modifier: Modifier = Modifier) {
     )
 }
 
-/** "Killer." — the wordmark always carries the coral full stop. Never all caps. */
+/** "Killer." — the wordmark always carries the accent full stop. Never all caps. */
 @Composable
 fun Wordmark(fontSize: Int = 20) {
     Text(
         text = buildAnnotatedString {
             withStyle(SpanStyle(color = KillerColors.TextPrimary)) { append("Killer") }
-            withStyle(SpanStyle(color = KillerColors.Coral)) { append(".") }
+            withStyle(SpanStyle(color = KillerColors.Accent)) { append(".") }
         },
         fontSize = fontSize.sp,
         fontWeight = FontWeight.ExtraBold,
@@ -69,17 +72,37 @@ fun Wordmark(fontSize: Int = 20) {
     )
 }
 
-/** Small pill used for "Setup" and "{n} running". */
+/**
+ * Slice 10: the depth design's top ambient glow — a #5A0E18 halo at 80%,
+ * fading to transparent by 45% height. Drawn behind a screen's content, on
+ * the true-black canvas. Put it first inside the screen's root Box.
+ */
+@Composable
+fun DepthHalo(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    0f to KillerColors.Halo.copy(alpha = 0.8f),
+                    0.45f to Color.Transparent,
+                )
+            )
+    )
+}
+
+/** Small pill used for "Setup" and "{n} running". Slice 10: glass — frosted white, floating above the content. */
 @Composable
 fun Pill(
     text: String,
-    background: Color = KillerColors.Surface2,
+    background: Color = KillerColors.Glass,
     foreground: Color = KillerColors.TextSecondary,
 ) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(percent = 50))
             .background(background)
+            .border(1.dp, KillerColors.GlassBorder, RoundedCornerShape(percent = 50))
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
@@ -124,7 +147,7 @@ fun tapScale(): Pair<Modifier, MutableInteractionSource> {
     return Modifier.scale(scale) to interaction
 }
 
-/** Big coral primary action — 64dp tall, 28dp pill, 17sp bold. */
+/** Big accent primary action — 64dp tall, 28dp pill, 17sp bold. Slice 10: the depth design's red glow under it. */
 @Composable
 fun PrimaryButton(
     label: String,
@@ -139,8 +162,14 @@ fun PrimaryButton(
             .fillMaxWidth()
             .height(height.dp)
             .then(scaleModifier)
+            .shadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(KillerDimens.ButtonRadius),
+                ambientColor = KillerColors.Accent.copy(alpha = 0.45f),
+                spotColor = KillerColors.Accent.copy(alpha = 0.45f),
+            )
             .clip(RoundedCornerShape(KillerDimens.ButtonRadius))
-            .background(if (enabled) KillerColors.Coral else KillerColors.Surface2)
+            .background(if (enabled) KillerColors.Accent else KillerColors.Surface2)
             .clickableNoRipple(enabled, interaction, onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -214,7 +243,7 @@ fun SecondaryButton(
     }
 }
 
-/** A card: 24dp radius, Surface fill, 1px border, 12dp+ inside. */
+/** A card: 24dp radius, Surface fill, 1px border, 12dp+ inside. Slice 10: layered — light from above (Surface2 fading to Surface) + outer shadow, so the card has weight on the true-black canvas. */
 @Composable
 fun KillerCard(
     modifier: Modifier = Modifier,
@@ -225,8 +254,18 @@ fun KillerCard(
     androidx.compose.foundation.layout.Column(
         modifier = modifier
             .fillMaxWidth()
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(KillerDimens.CardRadius),
+                ambientColor = Color.Black.copy(alpha = 0.6f),
+                spotColor = Color.Black.copy(alpha = 0.6f),
+            )
             .clip(RoundedCornerShape(KillerDimens.CardRadius))
-            .background(background)
+            .background(
+                Brush.verticalGradient(
+                    listOf(KillerColors.Surface2, background),
+                )
+            )
             .border(1.dp, borderColor, RoundedCornerShape(KillerDimens.CardRadius))
             .padding(KillerDimens.InsideCard)
             .defaultMinSize(minHeight = KillerDimens.MinTapTarget),

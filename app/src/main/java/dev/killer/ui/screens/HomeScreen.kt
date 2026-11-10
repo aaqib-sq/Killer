@@ -28,6 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.killer.ui.HomeApp
 import dev.killer.ui.AppTab
+import dev.killer.ui.components.DepthHalo
 import dev.killer.ui.components.KillerCard
 import dev.killer.ui.components.KillerHeader
 import dev.killer.ui.components.Pill
@@ -77,7 +81,10 @@ fun HomeScreen(
     onCloseOne: (HomeApp) -> Unit,
     onCloseAll: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize().background(KillerColors.Background)) {
+    // Slice 10: the depth canvas — true black + red halo behind the content.
+    Box(modifier = Modifier.fillMaxSize().background(KillerColors.Background)) {
+        DepthHalo()
+        Column(modifier = Modifier.fillMaxSize()) {
 
         Column(modifier = Modifier.padding(horizontal = KillerDimens.PagePadding)) {
             Spacer(Modifier.height(3.dp))
@@ -112,7 +119,7 @@ fun HomeScreen(
                         color = if (tab == option) KillerColors.TextPrimary else KillerColors.TextSecondary,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.clip(RoundedCornerShape(20.dp))
-                            .background(if (tab == option) KillerColors.Coral else KillerColors.Surface2)
+                            .background(if (tab == option) KillerColors.Accent else KillerColors.Surface2)
                             .clickableNoRipple(true, interaction) { onTab(option) }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                     )
@@ -196,6 +203,7 @@ fun HomeScreen(
                 height = KillerDimens.PrimaryButtonHeight.value.toInt(),
             )
         }
+        }
     }
 }
 
@@ -208,8 +216,19 @@ private fun AppCard(app: HomeApp, onClose: () -> Unit, selected: Boolean, onSele
             .fillMaxWidth()
             .height(KillerDimens.AppCardHeight)
             .then(cardScale)
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(KillerDimens.CardRadius),
+                ambientColor = Color.Black.copy(alpha = 0.6f),
+                spotColor = Color.Black.copy(alpha = 0.6f),
+            )
             .clip(RoundedCornerShape(KillerDimens.CardRadius))
-            .background(KillerColors.Surface)
+            // Slice 10: layered card — light from above (Surface2 fading to Surface).
+            .background(
+                Brush.verticalGradient(
+                    listOf(KillerColors.Surface2, KillerColors.Surface),
+                )
+            )
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

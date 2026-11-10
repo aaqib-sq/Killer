@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun KillerTheme(content: @Composable () -> Unit) {
     val scheme = darkColorScheme(
-        primary = KillerColors.Coral,
+        primary = KillerColors.Accent,
         onPrimary = KillerColors.TextPrimary,
         secondary = KillerColors.Mint,
         onSecondary = KillerColors.Background,
@@ -30,7 +30,7 @@ fun KillerTheme(content: @Composable () -> Unit) {
         surfaceVariant = KillerColors.Surface2,
         onSurfaceVariant = KillerColors.TextSecondary,
         outline = KillerColors.Border,
-        error = KillerColors.Coral,
+        error = KillerColors.Accent,
     )
 
     val typography = Typography(

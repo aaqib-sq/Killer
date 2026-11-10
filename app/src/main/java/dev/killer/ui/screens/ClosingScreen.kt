@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.killer.ui.ClosingPhase
+import dev.killer.ui.components.DepthHalo
 import dev.killer.ui.components.OutlineButton
 import dev.killer.ui.components.PrimaryButton
 import dev.killer.ui.components.SecondaryButton
@@ -96,13 +97,19 @@ fun ClosingScreen(
         label = "ringProgress",
     )
 
-    Column(
+    // Slice 10: the depth canvas — true black + red halo behind the content.
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(KillerColors.Background)
-            .padding(horizontal = KillerDimens.PagePadding),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .background(KillerColors.Background),
     ) {
+        DepthHalo()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = KillerDimens.PagePadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         Spacer(Modifier.height(32.dp))
 
         Text(
@@ -250,12 +257,13 @@ fun ClosingScreen(
         }
 
         Spacer(Modifier.height(20.dp))
+        }
     }
 }
 
 @Composable
 private fun ProgressRing(progress: Float, done: Boolean) {
-    val ringColor = if (done) KillerColors.Mint else KillerColors.Coral
+    val ringColor = if (done) KillerColors.Mint else KillerColors.Accent
     Canvas(modifier = Modifier.size(KillerDimens.RingSize)) {
         val stroke = 14.dp.toPx()
         val inset = stroke / 2f
@@ -287,7 +295,7 @@ private fun ProgressRing(progress: Float, done: Boolean) {
 
 /**
  * Seek line (Slice 7 — replaces the dots): a full-width track with a fill
- * proportional to the ring progress, like a video seek bar. Coral while
+ * proportional to the ring progress, like a video seek bar. Accent while
  * closing, mint when finished. Same geometry as the overlay's seek line.
  */
 @Composable
@@ -304,7 +312,7 @@ private fun SeekLine(progress: Float, done: Boolean) {
                 .fillMaxWidth(progress.coerceIn(0f, 1f))
                 .height(8.dp)
                 .clip(RoundedCornerShape(percent = 50))
-                .background(if (done) KillerColors.Mint else KillerColors.Coral),
+                .background(if (done) KillerColors.Mint else KillerColors.Accent),
         )
     }
 }

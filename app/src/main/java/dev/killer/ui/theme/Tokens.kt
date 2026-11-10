@@ -5,11 +5,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Design tokens — transcribed verbatim from `killer-ui-concept.html` (`:root` block).
- * Dark only. Nothing here is a guess: every value exists in the concept.
+ * Design tokens — the first concept's values, updated by Slice 10 to the
+ * RedotPay Depth Version (user order 2026-11-10: look 100% like that design,
+ * no compromise). Dark only. Nothing here is a guess: every value exists in
+ * that design's rationale.
  */
 object KillerColors {
-    val Background = Color(0xFF0A0A0B)
+    /** Slice 10: the depth canvas is TRUE black (#000000), not #0A0A0B. "Grey washes out contrast — black makes red glow." */
+    val Background = Color(0xFF000000)
     val Surface = Color(0xFF161618)
     val Surface2 = Color(0xFF1E1E20)
     val Border = Color(0xFF2A2A2D)
@@ -18,7 +21,15 @@ object KillerColors {
     val TextSecondary = Color(0xFFA8A8AD)
     val TextMuted = Color(0xFF6B6B70)
 
-    val Coral = Color(0xFFFF5A5A)
+    /** Slice 10: the depth design's red (#FF2D3A) replaces the first concept's coral (#FF5A5A). Renamed Accent so the name stays honest. Orange (#FF6A00, a small secondary in the design) is deliberately NOT used — one accent only. */
+    val Accent = Color(0xFFFF2D3A)
+    /** Slice 10: the top ambient glow — a #5A0E18 halo at 80%, fading to transparent by 45% height. */
+    val Halo = Color(0xFF5A0E18)
+    /** Slice 10: the layered cards' inner top highlight — white at 8%. */
+    val CardHighlight = Color(0x14FFFFFF)
+    /** Slice 10: the glass pills — frosted white at 10% with a 15% border. */
+    val Glass = Color(0x1AFFFFFF)
+    val GlassBorder = Color(0x26FFFFFF)
     val Mint = Color(0xFF7BF1C8)
     val Amber = Color(0xFFFFC24B)
 }
