@@ -39,6 +39,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.ViewTreeLifecycleOwner
+import androidx.lifecycle.ViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.ViewTreeSavedStateRegistryOwner
 import dev.killer.ui.KillerUiState
 import dev.killer.ui.components.OutlineButton
 import dev.killer.ui.theme.KillerColors
@@ -94,6 +105,42 @@ data class OverlayUiState(
 )
 
 /**
+ * The overlay window lives outside any Activity, so Compose has no lifecycle
+ * owner to find in the view tree. Without these three owners a ComposeView
+ * crashes on attach (IllegalStateException: ViewTreeLifecycleOwner not found)
+ * the moment Close is pressed with the overlay permission granted — that was
+ * the Slice 3 crash. This owner is created per show and destroyed on hide.
+ */
+private class OverlayLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+    override val lifecycle: LifecycleRegistry = LifecycleRegistry(this)
+    override val viewModelStore: ViewModelStore = ViewModelStore()
+    private val savedStateRegistryController: SavedStateRegistryController =
+        SavedStateRegistryController.create(this)
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateRegistryController.savedStateRegistry
+
+    init {
+        savedStateRegistryController.performAttach()
+    }
+
+    fun onCreate() {
+        savedStateRegistryController.performRestore(null)
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+    }
+
+    fun onStart() = lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
+
+    fun onResume() = lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+
+    fun onDestroy() {
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        viewModelStore.clear()
+    }
+}
+
+/**
  * Slice 3 — the Hibernator-style progress overlay.
  *
  * The Closing screen is a normal in-app screen, so the Settings app that the
@@ -112,6 +159,10 @@ data class OverlayUiState(
  *   (and its Cancel button) takes touches.
  * - [showAndAwait] returns only after the card is attached and laid out, so
  *   no Settings intent fires before the progress UI is up.
+ * - The card is a ComposeView in a WindowManager window, outside any Activity,
+ *   so [showAndAwait] gives it its own [OverlayLifecycleOwner] (lifecycle +
+ *   ViewModelStore + SavedStateRegistry) before adding the window. Without
+ *   those owners Compose crashes on attach — the Slice 3 Close crash.
  * - [hide] is idempotent and is called on every exit path (Done, Cancel,
  *   ViewModel cleared, exception). If the process dies, the system removes
  *   the window with it — the card can never be left behind.
@@ -130,6 +181,7 @@ class ClosingOverlayController(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private var overlayView: View? = null
+    private var overlayOwner: OverlayLifecycleOwner? = null
     private var collectJob: Job? = null
 
     /**
@@ -142,6 +194,15 @@ class ClosingOverlayController(
         if (!hasOverlayPermission(appContext)) return@withContext false
         try {
             val view = ComposeView(appContext)
+            // The window has no Activity, so Compose needs its owners set
+            // explicitly — otherwise it crashes on attach (Slice 3 bug).
+            val owner = OverlayLifecycleOwner()
+            overlayOwner = owner
+            ViewTreeLifecycleOwner.set(view, owner)
+            ViewTreeViewModelStoreOwner.set(view, owner)
+            ViewTreeSavedStateRegistryOwner.set(view, owner)
+            owner.onCreate()
+            owner.onStart()
             view.setContent {
                 KillerTheme {
                     val ui by uiState
@@ -157,6 +218,7 @@ class ClosingOverlayController(
                 PixelFormat.TRANSLUCENT,
             ).apply { gravity = Gravity.CENTER }
             windowManager.addView(view, params)
+            owner.onResume()
             overlayView = view
             collectJob = scope.launch {
                 state.collect { s ->
@@ -184,6 +246,8 @@ class ClosingOverlayController(
         }
         collectJob?.cancel()
         collectJob = null
+        overlayOwner?.onDestroy()
+        overlayOwner = null
         val view = overlayView
         overlayView = null
         if (view != null) {
