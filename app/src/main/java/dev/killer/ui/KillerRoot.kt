@@ -91,8 +91,10 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                     Screen.Permissions -> PermissionsScreen(
                         usageAccess = state.usageAccess,
                         accessibility = state.accessibility,
+                        overlayPermission = state.overlayPermission,
                         onEnableUsage = viewModel::openUsageAccessSettings,
                         onEnableAccessibility = viewModel::openAccessibilitySettings,
+                        onEnableOverlay = viewModel::openOverlayPermissionSettings,
                         onContinue = viewModel::continueFromPermissions,
                     )
 
