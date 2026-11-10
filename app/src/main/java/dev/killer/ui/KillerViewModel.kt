@@ -11,6 +11,8 @@ import dev.killer.engine.AppCategories
 import dev.killer.engine.Intention
 import dev.killer.engine.KeepReason
 import dev.killer.engine.KeepSafe
+import dev.killer.ui.overlay.ClosingOverlayController
+import dev.killer.ui.overlay.hasOverlayPermission
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -101,6 +103,16 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     private var loadJob: Job? = null
     private var confirmedInSession = false
 
+    /**
+     * Slice 3: floats the closing progress above Settings while apps close.
+     * Mirrors this ViewModel's progress state; Cancel routes to [cancelClosing].
+     */
+    private val overlayController = ClosingOverlayController(
+        context = context,
+        state = _state,
+        onCancel = { cancelClosing() },
+    )
+
     init {
         _state.update { it.copy(screen = startScreen()) }
         refreshPermissions()
@@ -112,10 +124,15 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshPermissions() {
         val usage = AppKillerEngine.hasUsageAccessPermission(context)
         val a11y = AppKillerEngine.isAccessibilityEnabled(context)
+        // Re-checked on every return from Settings, like the other two. The
+        // overlay permission never forces the Permissions screen: closing
+        // works with or without it.
+        val overlay = hasOverlayPermission(context)
         _state.update {
             it.copy(
                 usageAccess = usage,
                 accessibility = a11y,
+                overlayPermission = overlay,
                 screen = if ((!usage || !a11y) && it.screen != Screen.Closing) Screen.Permissions else it.screen,
             )
         }
@@ -124,6 +141,8 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     fun openUsageAccessSettings() = AppKillerEngine.openUsageAccessSettings(context)
 
     fun openAccessibilitySettings() = AppKillerEngine.openAccessibilitySettings(context)
+
+    fun openOverlayPermissionSettings() = dev.killer.ui.overlay.openOverlayPermissionSettings(context)
 
     fun continueFromPermissions() {
         if (!_state.value.usageAccess || !_state.value.accessibility) return
@@ -283,49 +302,62 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         closeJob = viewModelScope.launch {
-            // Let the Closing UI render before launching the system Settings UI.
-            delay(400)
-            val labels = targets.associate { it.packageName to it.label }
+            try {
+                // Show the progress overlay and confirm it is drawn BEFORE the
+                // first Settings intent fires. Without the overlay permission
+                // this returns false at once and closing falls back to the
+                // in-app Closing screen, exactly as before.
+                overlayController.showAndAwait()
+                // Let the Closing UI render before launching the system Settings UI.
+                delay(400)
+                val labels = targets.associate { it.packageName to it.label }
 
-            val report = withContext(Dispatchers.IO) {
-                // The extracted engine runs the loop, cancels cleanly, and counts
-                // only dismissals that actually happened.
-                AppKillerEngine.executeKillList(
-                    context = context,
-                    packagesToKill = targets.map { it.packageName },
-                    appLabels = labels,
-                    protectedPackages = kept.map { it.packageName }.toSet(),
-                    onProgress = { p ->
-                        val fraction = if (p.total == 0) 0f else (p.current - 1).toFloat() / p.total
-                        _state.update {
-                            it.copy(
-                                closingIndex = p.current,
-                                closingLabel = p.currentLabel,
-                                ringProgress = fraction.coerceIn(0f, 1f),
-                            )
-                        }
-                    },
-                )
+                val report = withContext(Dispatchers.IO) {
+                    // The extracted engine runs the loop, cancels cleanly, and counts
+                    // only dismissals that actually happened.
+                    AppKillerEngine.executeKillList(
+                        context = context,
+                        packagesToKill = targets.map { it.packageName },
+                        appLabels = labels,
+                        protectedPackages = kept.map { it.packageName }.toSet(),
+                        onProgress = { p ->
+                            val fraction = if (p.total == 0) 0f else (p.current - 1).toFloat() / p.total
+                            _state.update {
+                                it.copy(
+                                    closingIndex = p.current,
+                                    closingLabel = p.currentLabel,
+                                    ringProgress = fraction.coerceIn(0f, 1f),
+                                )
+                            }
+                        },
+                    )
+                }
+
+                // The ring never jumps: ease the last leg to 100% over one app's pace.
+                animateRingTo(1f)
+
+                // At Done the overlay goes away and the Done screen shows.
+                overlayController.hide()
+
+                _state.update {
+                    it.copy(
+                        phase = ClosingPhase.Done,
+                        selectedOther = emptySet(),
+                        ringProgress = 1f,
+                        closedCount = report.killed.size,
+                        skippedCount = report.skipped.count { it.second != "Protected" },
+                        skippedDetails = report.skipped.map { (pkg, reason) -> "${labels[pkg] ?: pkg}: $reason" },
+                        keptSafeCount = kept.size + report.skipped.count { it.second == "Protected" },
+                        undoAvailable = report.killed.isNotEmpty(),
+                        undoSecondsLeft = if (report.killed.isNotEmpty()) 5 else 0,
+                    )
+                }
+                startUndoCountdown()
+                loadApps()
+            } finally {
+                // Every exit path (Done, Cancel, error) removes the overlay.
+                overlayController.hide()
             }
-
-            // The ring never jumps: ease the last leg to 100% over one app's pace.
-            animateRingTo(1f)
-
-            _state.update {
-                it.copy(
-                    phase = ClosingPhase.Done,
-                    selectedOther = emptySet(),
-                    ringProgress = 1f,
-                    closedCount = report.killed.size,
-                    skippedCount = report.skipped.count { it.second != "Protected" },
-                    skippedDetails = report.skipped.map { (pkg, reason) -> "${labels[pkg] ?: pkg}: $reason" },
-                    keptSafeCount = kept.size + report.skipped.count { it.second == "Protected" },
-                    undoAvailable = report.killed.isNotEmpty(),
-                    undoSecondsLeft = if (report.killed.isNotEmpty()) 5 else 0,
-                )
-            }
-            startUndoCountdown()
-            loadApps()
         }
     }
 
@@ -354,6 +386,8 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Cancel stops cleanly and returns to Home with whatever is left. */
     fun cancelClosing() {
+        // The overlay's Cancel lands here too: stop immediately, drop the card.
+        overlayController.hide()
         closeJob?.cancel()
         closeJob = null
         _state.update {
@@ -380,6 +414,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissToast() = _state.update { it.copy(toast = null) }
 
     override fun onCleared() {
+        overlayController.hide()
         closeJob?.cancel()
         undoJob?.cancel()
         super.onCleared()

@@ -38,16 +38,22 @@ import dev.killer.ui.theme.KillerType
 
 /**
  * Screen 1 — Permissions. First run only.
- * Copy is the concept's, word for word (killer-ui-concept.html, "Permissions screen").
+ * The first two cards are the concept's, word for word
+ * (killer-ui-concept.html, "Permissions screen"). Slice 3 adds the optional
+ * third card ("Keep progress visible") so the closing progress can float
+ * above Settings; it never gates Continue.
  */
 @Composable
 fun PermissionsScreen(
     usageAccess: Boolean,
     accessibility: Boolean,
+    overlayPermission: Boolean,
     onEnableUsage: () -> Unit,
     onEnableAccessibility: () -> Unit,
+    onEnableOverlay: () -> Unit,
     onContinue: () -> Unit,
 ) {
+    // The overlay permission is optional: Continue only needs the first two.
     val both = usageAccess && accessibility
 
     Column(
@@ -63,7 +69,7 @@ fun PermissionsScreen(
         Spacer(Modifier.height(28.dp))
 
         Text(
-            text = "Two quick permissions. Then you're done.",
+            text = "Three quick permissions. Then you're done.",
             color = KillerColors.TextPrimary,
             fontSize = KillerType.HeadlineLarge,
             fontWeight = FontWeight.ExtraBold,
@@ -98,6 +104,16 @@ fun PermissionsScreen(
             body = "So one tap can open Settings and force-stop the selected apps. You can turn this off anytime.",
             enabled = accessibility,
             onEnable = onEnableAccessibility,
+        )
+
+        Spacer(Modifier.height(KillerDimens.BetweenCards))
+
+        PermissionCard(
+            icon = { KillerIcons.Draw(KillerIcons.Layers, 24, KillerColors.TextPrimary) },
+            title = "Keep progress visible",
+            body = "So the closing progress stays on screen while Settings opens each app. Optional — closing still works without it.",
+            enabled = overlayPermission,
+            onEnable = onEnableOverlay,
         )
 
         Spacer(Modifier.height(20.dp))

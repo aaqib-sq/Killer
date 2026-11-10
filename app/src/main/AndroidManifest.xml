@@ -10,6 +10,9 @@
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+    <!-- Optional: lets the closing progress stay visible above Settings while
+         apps close. Granted by the user in Settings; closing works without it. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:name=".KillerApp"
