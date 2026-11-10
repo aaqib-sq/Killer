@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.killer"
-        // Android 13+ has the Recents semantics the engine relies on.
+        // Android 13+ is the supported device baseline.
         minSdk = 33
         targetSdk = 34
         versionCode = 1

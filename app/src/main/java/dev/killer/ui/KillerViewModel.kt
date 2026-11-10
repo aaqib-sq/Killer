@@ -190,21 +190,9 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
 
     // --------------------------------------------------------------- closing
 
-    /** Close one app: the card leaves the list, the count drops, no full-screen moment. */
+    /** Per-app close uses the same protected engine and report as Close All. */
     fun closeOne(app: HomeApp) {
-        if (app.isKept || app.packageName in _state.value.unkept) return
-        viewModelScope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                AppKillerAccessibilityService.instance
-                    ?.dismissFromRecents(app.label, app.packageName) ?: false
-            }
-            _state.update {
-                it.copy(
-                    toast = if (ok) "${app.label} closed" else "Couldn't close ${app.label} — not in Recents",
-                )
-            }
-            loadApps()
-        }
+        if (!app.isKept) startClosing(listOf(app), _state.value.keptRows)
     }
 
     fun closeAll() = startClosing(_state.value.closable, _state.value.keptRows)

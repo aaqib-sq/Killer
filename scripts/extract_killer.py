@@ -5,7 +5,7 @@ Extract the Killer engine from TRMX-GUI main (PR #70, merge 09c8f722) into dev.k
 The engine is copied verbatim except for:
   * package rename  dev.trmx.gui.killer -> dev.killer.engine
   * TRMX/Termux dependencies removed (bridge packages, MainActivity return intent)
-  * the Force Stop automation replaced by Recents dismissal (never force-stop)
+  * MainActivity return intent retargeted to Killer
 
 Usage: python3 scripts/extract_killer.py <trmx-killer-dir> <dest-dir>
 """
@@ -41,7 +41,7 @@ svc = rename_pkg(read("AppKillerAccessibilityService.kt"))
 (DST / "AppKillerAccessibilityService.kt").write_text(svc, encoding="utf-8")
 
 # ------------------------------------------------------------ AppKillerEngine.kt
-eng = rename_pkg(read("AppKillerEngine.kt"))
+eng = rename_pkg(read("AppKillerEngine.kt")).replace("import dev.trmx.gui.MainActivity", "import dev.killer.MainActivity")
 (DST / "AppKillerEngine.kt").write_text(eng, encoding="utf-8")
 
 # --------------------------------------------------------- AppKillerViewModel.kt

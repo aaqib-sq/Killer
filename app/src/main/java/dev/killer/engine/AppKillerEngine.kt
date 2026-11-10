@@ -1,9 +1,6 @@
 package dev.killer.engine
 
 import android.accessibilityservice.AccessibilityServiceInfo
-import android.accessibilityservice.GestureDescription
-import android.graphics.Path
-import android.graphics.Rect
 import android.app.ActivityManager
 import android.app.AppOpsManager
 import android.app.usage.UsageStats
@@ -19,6 +16,7 @@ import android.os.Process
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
+import dev.killer.MainActivity
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.coroutineContext
@@ -44,12 +42,7 @@ data class KillReport(
 )
 
 /**
- * Core engine for Killer.
- *
- * ADAPTED FROM TRMX-GUI: the detection half is byte-for-byte the PR #70 engine;
- * the destructive half is replaced. TRMX drove Settings -> Force stop. Killer
- * dismisses the app's card from Recents instead, because the concept promises
- * "closes apps from Recents, in one tap" and never claims force-stop.
+ * Core engine for TRMX App Killer.
  *
  * Privacy & Security Guarantee:
  * STRICTLY ON-DEVICE ONLY. All UsageStats, Accessibility observations, and package metadata
@@ -87,12 +80,12 @@ object AppKillerEngine {
         isPackageStoppedOverride?.let { return it(packageName) }
         return try {
             val pm = context.packageManager
-            // minSdk is 33, so ApplicationInfoFlags always exists; no deprecated
-            // integer overload is needed (it would have to hit a hidden framework id).
-            val appInfo = pm.getApplicationInfo(
-                packageName,
-                PackageManager.ApplicationInfoFlags.of(0L),
-            )
+            val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0L))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getApplicationInfo(packageName, 0)
+            }
             isStopped(appInfo)
         } catch (_: Exception) {
             false
@@ -568,6 +561,142 @@ object AppKillerEngine {
         )
     }
 
+    fun isNodeOrAncestorClickable(node: AccessibilityNodeInfo): Boolean {
+        var p: AccessibilityNodeInfo? = node
+        while (p != null) {
+            if (p.isClickable) return true
+            p = p.parent
+        }
+        return false
+    }
+
+    fun isNodeAndAncestorsEnabled(node: AccessibilityNodeInfo): Boolean {
+        var p: AccessibilityNodeInfo? = node
+        while (p != null) {
+            if (!p.isEnabled) return false
+            if (p.isClickable) {
+                return p.isEnabled
+            }
+            p = p.parent
+        }
+        return node.isEnabled
+    }
+
+    fun hasCancelButton(root: AccessibilityNodeInfo): Boolean {
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.add(root)
+        while (stack.isNotEmpty()) {
+            val node = stack.removeFirst()
+            val text = node.text?.toString()?.trim()
+            val viewId = node.viewIdResourceName
+            if ((text != null && text.equals("Cancel", ignoreCase = true)) ||
+                (viewId != null && (viewId.endsWith(":id/button2") || viewId.contains("button2", ignoreCase = true)))
+            ) {
+                return true
+            }
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child != null) stack.add(child)
+            }
+        }
+        return false
+    }
+
+    fun findForceStopNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.add(root)
+
+        var fallbackCandidate: AccessibilityNodeInfo? = null
+
+        while (stack.isNotEmpty()) {
+            val node = stack.removeFirst()
+            val text = node.text?.toString()?.trim()
+            val desc = node.contentDescription?.toString()?.trim()
+            val viewId = node.viewIdResourceName
+
+            val isForceStopText = (text != null && text.matches(Regex("(?i)^force[\\s_-]*stop[\\s.!]*(now)?$"))) ||
+                (desc != null && desc.matches(Regex("(?i)^force[\\s_-]*stop[\\s.!]*(now)?$")))
+            val isForceStopId = viewId != null && (
+                viewId.contains("force_stop", ignoreCase = true) ||
+                viewId.contains("btn_force_stop", ignoreCase = true)
+            )
+
+            if (isForceStopText || isForceStopId) {
+                val enabled = isNodeAndAncestorsEnabled(node)
+                val clickable = isNodeOrAncestorClickable(node)
+                if (enabled && clickable) {
+                    return node
+                }
+                if (fallbackCandidate == null) {
+                    fallbackCandidate = node
+                }
+            }
+
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child != null) {
+                    stack.add(child)
+                }
+            }
+        }
+
+        return fallbackCandidate
+    }
+
+    fun performClick(node: AccessibilityNodeInfo): Boolean {
+        var target: AccessibilityNodeInfo? = node
+        while (target != null) {
+            if (target.isClickable) {
+                return target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+            target = target.parent
+        }
+        return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    fun findConfirmationDialogButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        stack.add(root)
+
+        val dialogPresent = hasCancelButton(root)
+        var candidate: AccessibilityNodeInfo? = null
+
+        while (stack.isNotEmpty()) {
+            val node = stack.removeFirst()
+            val text = node.text?.toString()?.trim()
+            val viewId = node.viewIdResourceName
+
+            val isPositiveId = viewId != null && (
+                viewId.endsWith(":id/button1") ||
+                viewId.contains("button1", ignoreCase = true) ||
+                viewId.contains("positive", ignoreCase = true)
+            )
+
+            val isPositiveText = text != null && (
+                text.equals("OK", ignoreCase = true) ||
+                (dialogPresent && text.matches(Regex("(?i)^force[\\s_-]*stop$")))
+            )
+
+            if (isPositiveId || isPositiveText) {
+                if (isNodeAndAncestorsEnabled(node) && isNodeOrAncestorClickable(node)) {
+                    return node
+                }
+                if (candidate == null) {
+                    candidate = node
+                }
+            }
+
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child != null) {
+                    stack.add(child)
+                }
+            }
+        }
+
+        return candidate
+    }
+
     suspend fun executeKillList(
         context: Context,
         packagesToKill: List<String>,
@@ -621,26 +750,94 @@ object AppKillerEngine {
                 continue
             }
 
-            // RECENTS DISMISSAL (this is the whole adaptation).
-            // TRMX opened App info and clicked "Force stop" here. Killer opens
-            // Recents and dismisses the app's card with the same swipe a person
-            // makes. Nothing is force-stopped, and nothing here claims to be.
-            val dismissed = try {
-                service.dismissFromRecents(label, pkg)
-            } catch (e: Exception) {
-                skipped.add(pkg to "Couldn't reach Recents: ${e.message ?: "unknown"}")
-                false
+            // On Android 13+ (API 33+), allow 1 repeat-on-timeout (max 2 attempts) with 3500ms timeout each
+            val maxAttempts = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) 2 else 1
+            var attempt = 0
+            var forceStopFound = false
+            var forceStopClicked = false
+            var forceStopDisabled = false
+
+            while (attempt < maxAttempts && !forceStopFound && !forceStopDisabled) {
+                attempt++
+                if (!coroutineContext.isActive) break
+
+                try {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", pkg, null)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    }
+                    startActivityAction(intent)
+                } catch (e: Exception) {
+                    if (attempt >= maxAttempts) {
+                        skipped.add(pkg to "Failed to open settings: ${e.message ?: "Unknown error"}")
+                    }
+                    continue
+                }
+
+                val startTime = System.currentTimeMillis()
+                while (System.currentTimeMillis() - startTime < 3500) {
+                    if (!coroutineContext.isActive) break
+                    delay(100)
+
+                    val root = service.rootInActiveWindow ?: continue
+                    val forceStopNode = findForceStopNode(root)
+                    if (forceStopNode != null) {
+                        forceStopFound = true
+                        if (!isNodeAndAncestorsEnabled(forceStopNode)) {
+                            forceStopDisabled = true
+                            break
+                        }
+                        val clicked = performClick(forceStopNode)
+                        if (clicked) {
+                            forceStopClicked = true
+                            break
+                        }
+                    }
+                }
             }
 
-            if (dismissed) {
+            if (forceStopDisabled) {
+                markPackageKilled(context, pkg)
+                skipped.add(pkg to "Already stopped (Force Stop disabled)")
+                continue
+            }
+
+            if (!forceStopFound) {
+                skipped.add(pkg to "Force Stop button not found (timed out)")
+                continue
+            }
+
+            if (forceStopClicked) {
+                val dialogStart = System.currentTimeMillis()
+                delay(150)
+                while (System.currentTimeMillis() - dialogStart < 1500) {
+                    if (!coroutineContext.isActive) break
+                    val root = service.rootInActiveWindow ?: run {
+                        delay(100)
+                        null
+                    } ?: continue
+
+                    val confirmBtn = findConfirmationDialogButton(root)
+                    if (confirmBtn != null && isNodeAndAncestorsEnabled(confirmBtn)) {
+                        performClick(confirmBtn)
+                        delay(250)
+                        break
+                    }
+                    delay(100)
+                }
                 markPackageKilled(context, pkg)
                 killed.add(pkg)
-            } else {
-                skipped.add(pkg to "Not in Recents")
+                delay(150)
             }
         }
 
-        // No activity hop: the Closing screen is Killer's own, never a system screen.
+        try {
+            val returnIntent = Intent(context, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            startActivityAction(returnIntent)
+        } catch (_: Exception) {
+        }
 
         return KillReport(
             totalTargeted = packagesToKill.size,

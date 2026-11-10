@@ -32,9 +32,7 @@
             </intent-filter>
         </activity>
 
-        <!-- The engine's only automation surface: closes apps from Recents.
-             It never opens app-info screens and never force-stops anything.
-             Extracted from TRMX-GUI (PR #70, 09c8f722) and retargeted. -->
+        <!-- On-device accessibility automation of Settings force-stop. -->
         <service
             android:name=".engine.AppKillerAccessibilityService"
             android:exported="true"
