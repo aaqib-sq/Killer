@@ -1,5 +1,6 @@
 package dev.killer.ui.overlay
 
+import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
@@ -8,12 +9,14 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -53,6 +56,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import dev.killer.R
 import dev.killer.ui.KillerUiState
 import dev.killer.ui.components.OutlineButton
 import dev.killer.ui.theme.KillerColors
@@ -182,8 +186,17 @@ class ClosingOverlayController(
     private val onCancel: () -> Unit,
 ) {
     private val appContext: Context = context.applicationContext
-    private val windowManager: WindowManager =
-        appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    /**
+     * The context the window is added from. Slice 9: the AccessibilityService
+     * when it is running (TYPE_ACCESSIBILITY_OVERLAY — the only type the
+     * system does not hide over Settings), the app context otherwise
+     * (TYPE_APPLICATION_OVERLAY fallback). Retargeted per run by the ViewModel,
+     * because the service instance can change between runs.
+     */
+    private var windowContext: Context = appContext
+    private var windowManager: WindowManager =
+        windowContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private var useAccessibilityOverlay: Boolean = false
     private val uiState = mutableStateOf(OverlayUiState())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -209,13 +222,18 @@ class ClosingOverlayController(
     suspend fun showAndAwait(): Boolean = withContext(Dispatchers.Main) {
         if (overlayView != null) return@withContext true
         if (showInFlight) return@withContext false
-        val permitted = hasOverlayPermission(appContext)
-        Log.d(TAG, "showAndAwait: overlay permission granted=$permitted")
+        // Slice 9: the accessibility overlay needs no "Display over other
+        // apps" grant — the running service is the permission. The fallback
+        // path still checks it.
+        val permitted = useAccessibilityOverlay || hasOverlayPermission(appContext)
+        Log.d(TAG, "showAndAwait: accessibilityOverlay=$useAccessibilityOverlay permission granted=$permitted")
         if (!permitted) return@withContext false
         overlayRequested = true
         showInFlight = true
         try {
-            val view = ComposeView(appContext)
+            // The service context gets the app theme, so the card looks the
+            // same as it did from the app context (Arena's open question).
+            val view = ComposeView(ContextThemeWrapper(windowContext, R.style.Theme_Killer))
             // The window has no Activity, so Compose needs its owners set
             // explicitly — otherwise it crashes on attach (Slice 3 bug).
             val owner = OverlayLifecycleOwner()
@@ -231,15 +249,21 @@ class ClosingOverlayController(
                     OverlayCard(ui = ui, onCancel = onCancel)
                 }
             }
-            // Slice 6: full-screen opaque cover. MATCH_PARENT in both axes,
-            // FLAG_LAYOUT_IN_SCREEN + SHORT_EDGES so the window also covers
-            // the status bar and the cutout area — the Settings screens
-            // opening underneath must never be seen. OPAQUE, not translucent:
-            // the content fills the window with the app background.
+            // Slice 9: TYPE_ACCESSIBILITY_OVERLAY, added from the service.
+            // Android 12+ hides TYPE_APPLICATION_OVERLAY windows over the
+            // Settings app (tapjacking defence); the accessibility layer is
+            // exempt and stays visible over Settings — the Hibernator route.
+            // Everything else (flags, OPAQUE, MATCH_PARENT, FILL, SHORT_EDGES)
+            // is unchanged. The fallback path keeps TYPE_APPLICATION_OVERLAY.
+            val windowType = if (useAccessibilityOverlay) {
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            } else {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            }
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                windowType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
@@ -287,6 +311,34 @@ class ClosingOverlayController(
     fun resetRunStats() {
         reshowCount = 0
         hideLog.clear()
+    }
+
+    /**
+     * Slice 9: point the window at the running AccessibilityService. The
+     * service itself (not its applicationContext) must be the window context —
+     * the system only grants TYPE_ACCESSIBILITY_OVERLAY windows to the service.
+     */
+    fun useServiceContext(service: AccessibilityService) {
+        windowContext = service
+        windowManager = windowContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        useAccessibilityOverlay = true
+    }
+
+    /** Fallback when the service is not running: the app-context overlay. */
+    fun useAppContext() {
+        windowContext = appContext
+        windowManager = windowContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        useAccessibilityOverlay = false
+    }
+
+    /** One-line geometry for the Done report: size + whether the window is shown. */
+    fun geometryReport(): String {
+        val view = overlayView
+        return if (view == null) {
+            "no window"
+        } else {
+            "${view.width}×${view.height} · attached=${view.isAttachedToWindow} · shown=${view.isShown} · visibility=${view.windowVisibility}"
+        }
     }
 
     /**
@@ -370,11 +422,23 @@ private fun OverlayCard(ui: OverlayUiState, onCancel: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(KillerColors.Background)
+            // Slice 9 TEST MARKER: a coral border + label, so the next device
+            // video proves whether the window on screen is the overlay at all.
+            // Remove once the accessibility overlay is verified on device.
+            .border(4.dp, KillerColors.Coral)
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(horizontal = KillerDimens.PagePadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Text(
+            text = "OVERLAY · test",
+            color = KillerColors.Coral,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+
         Spacer(Modifier.height(32.dp))
 
         Text(

@@ -72,6 +72,8 @@ data class KillerUiState(
     val overlayReshows: Int = 0,
     /** Unusual overlay hide() calls during this run (expected "done"/"finally" excluded) — the Done screen reports them. */
     val overlayHideLog: List<String> = emptyList(),
+    /** Overlay window geometry at Done (size + attached/shown) — proves which window was on screen. */
+    val overlayGeometry: String = "",
     val undoSecondsLeft: Int = 0,
     val undoAvailable: Boolean = false,
     val toast: String? = null,
@@ -287,6 +289,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 overlayAvailable = false,
                 overlayReshows = 0,
                 overlayHideLog = emptyList(),
+                overlayGeometry = "",
                 undoAvailable = false,
                 undoSecondsLeft = 0,
             )
@@ -302,7 +305,18 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 // was off. (Slice 7 blamed the permission; the user confirmed
                 // it is ON — "Appear on top" — and the bug stayed, so the
                 // overlay's fate is now tracked per run instead of guessed.)
+                // Slice 9: point the window at the running AccessibilityService
+                // (TYPE_ACCESSIBILITY_OVERLAY — the only type the system does
+                // not hide over Settings). Without the service, fall back to
+                // the app-context overlay; the engine fails the run anyway
+                // when the service is not running.
                 overlayController.resetRunStats()
+                val service = AppKillerAccessibilityService.instance
+                if (service != null) {
+                    overlayController.useServiceContext(service)
+                } else {
+                    overlayController.useAppContext()
+                }
                 val overlayShown = overlayController.showAndAwait()
                 Log.d("Killer", "startClosing: overlay shown=$overlayShown")
                 _state.update { it.copy(overlayAvailable = overlayShown) }
@@ -355,6 +369,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                         overlayHideLog = overlayController.hideEvents.filter {
                             !it.startsWith("done") && !it.startsWith("finally")
                         },
+                        overlayGeometry = overlayController.geometryReport(),
                         undoAvailable = report.killed.isNotEmpty(),
                         undoSecondsLeft = if (report.killed.isNotEmpty()) 5 else 0,
                     )
