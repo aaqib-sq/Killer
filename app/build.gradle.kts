@@ -51,6 +51,10 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2")
+    // Explicit: the overlay window runs outside an Activity, so its ComposeView
+    // needs its own lifecycle + saved-state owners (Slice 5 crash fix).
+    implementation("androidx.lifecycle:lifecycle-runtime:2.8.2")
+    implementation("androidx.savedstate:savedstate:1.2.1")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
