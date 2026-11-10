@@ -6,10 +6,11 @@ The engine is copied verbatim except for:
   * package rename  dev.trmx.gui.killer -> dev.killer.engine
   * TRMX/Termux dependencies removed (bridge packages, MainActivity return intent)
   * MainActivity return intent retargeted to Killer
+  * scripts/patches/trmx-engine-safety.patch adds Killer safety and result checks
 
 Usage: python3 scripts/extract_killer.py <trmx-killer-dir> <dest-dir>
 """
-import re, sys, pathlib
+import re, sys, pathlib, subprocess
 
 SRC = pathlib.Path(sys.argv[1])
 DST = pathlib.Path(sys.argv[2])
@@ -47,6 +48,10 @@ eng = rename_pkg(read("AppKillerEngine.kt")).replace("import dev.trmx.gui.MainAc
 # --------------------------------------------------------- AppKillerViewModel.kt
 vm = rename_pkg(read("AppKillerViewModel.kt"))
 (DST / "AppKillerViewModel.kt").write_text(vm, encoding="utf-8")
+
+# Apply the maintained, reviewable adaptation after the verbatim port.
+patch = pathlib.Path(__file__).resolve().parent / "patches" / "trmx-engine-safety.patch"
+subprocess.run(["patch", "--batch", "--forward", "-d", str(DST.resolve()), "-p0", "-i", str(patch)], check=True)
 
 for p in sorted(DST.iterdir()):
     print(f"{p.name:40s} {len(p.read_text().splitlines()):5d} lines")

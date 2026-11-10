@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.killer.ui.HomeApp
+import dev.killer.ui.AppTab
 import dev.killer.ui.components.KillerCard
 import dev.killer.ui.components.KillerHeader
 import dev.killer.ui.components.Pill
@@ -53,6 +54,11 @@ import dev.killer.ui.theme.KillerType
 @Composable
 fun HomeScreen(
     apps: List<HomeApp>,
+    runningCount: Int,
+    closableCount: Int,
+    loading: Boolean,
+    tab: AppTab,
+    onTab: (AppTab) -> Unit,
     onCloseOne: (HomeApp) -> Unit,
     onCloseAll: () -> Unit,
     onQuietMode: () -> Unit,
@@ -62,12 +68,12 @@ fun HomeScreen(
         Column(modifier = Modifier.padding(horizontal = KillerDimens.PagePadding)) {
             Spacer(Modifier.height(3.dp))
             // Header keeps the concept's exact chrome: logo + wordmark + "{n} running".
-            KillerHeader(trailingPill = "${apps.size} running", markSize = 32, wordmarkSize = 19)
+            KillerHeader(trailingPill = "$runningCount running", markSize = 32, wordmarkSize = 19)
 
             Spacer(Modifier.height(24.dp))
 
             Text(
-                text = "${apps.size} apps running",
+                text = if (tab == AppTab.Running) "$runningCount apps running" else if (tab == AppTab.Other) "Other apps" else "Core apps",
                 color = KillerColors.TextPrimary,
                 fontSize = KillerType.HeadlineLarge,
                 fontWeight = FontWeight.ExtraBold,
@@ -107,13 +113,32 @@ fun HomeScreen(
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppTab.entries.forEach { option ->
+                    val interaction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    Text(
+                        text = option.name,
+                        color = if (tab == option) KillerColors.TextPrimary else KillerColors.TextSecondary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(20.dp))
+                            .background(if (tab == option) KillerColors.Coral else KillerColors.Surface2)
+                            .clickableNoRipple(true, interaction) { onTab(option) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
         }
 
         // The list settles gently: cards fade + slide out, never just vanish.
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (apps.isEmpty()) {
+            if (loading) {
+                Text("Loading apps…", color = KillerColors.TextSecondary, modifier = Modifier.padding(24.dp))
+            } else if (apps.isEmpty() && tab == AppTab.Running) {
                 EmptyState(onQuietMode = onQuietMode)
+            } else if (apps.isEmpty()) {
+                Text("No apps found", color = KillerColors.TextSecondary, modifier = Modifier.padding(24.dp))
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -145,8 +170,8 @@ fun HomeScreen(
                 .padding(horizontal = KillerDimens.PagePadding, vertical = 12.dp),
         ) {
             PrimaryButton(
-                label = "Close All • ${apps.size}",
-                enabled = apps.isNotEmpty(),
+                label = "Close All • $closableCount",
+                enabled = closableCount > 0 && tab == AppTab.Running && !loading,
                 onClick = onCloseAll,
                 height = KillerDimens.PrimaryButtonHeight.value.toInt(),
             )
@@ -198,10 +223,10 @@ private fun AppCard(app: HomeApp, onClose: () -> Unit) {
                 .then(xScale)
                 .clip(RoundedCornerShape(percent = 50))
                 .background(KillerColors.Surface2)
-                .clickableNoRipple(enabled = true, interaction = xInteraction, onClick = onClose),
+                .clickableNoRipple(enabled = !app.isKept, interaction = xInteraction, onClick = onClose),
             contentAlignment = Alignment.Center,
         ) {
-            KillerIcons.Draw(KillerIcons.X, 20, KillerColors.TextSecondary)
+            KillerIcons.Draw(if (app.isKept) KillerIcons.Lock else KillerIcons.X, 20, KillerColors.TextSecondary)
         }
     }
 }

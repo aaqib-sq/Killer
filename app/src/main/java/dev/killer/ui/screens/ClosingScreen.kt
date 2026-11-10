@@ -57,6 +57,7 @@ fun ClosingScreen(
     progress: Float,
     closedCount: Int,
     keptSafeCount: Int,
+    skippedCount: Int,
     undoAvailable: Boolean,
     undoSecondsLeft: Int,
     onCancel: () -> Unit,
@@ -133,7 +134,7 @@ fun ClosingScreen(
         Spacer(Modifier.height(24.dp))
 
         Text(
-            text = if (done) "Done. All quiet." else "Closing $currentLabel…",
+            text = if (done) "Done." else "Closing $currentLabel…",
             color = KillerColors.TextPrimary,
             fontSize = KillerType.Headline,
             fontWeight = FontWeight.ExtraBold,
@@ -146,10 +147,10 @@ fun ClosingScreen(
 
         Text(
             text = if (done) {
-                if (keptSafeCount > 0) "$closedCount apps closed • $keptSafeCount kept safe"
-                else "$closedCount apps closed"
+                "$closedCount apps closed • $keptSafeCount kept safe" +
+                    if (skippedCount > 0) " • $skippedCount not closed" else ""
             } else {
-                "Staying on this screen until it's finished."
+                "Settings screens appear while apps are closed."
             },
             color = KillerColors.TextSecondary,
             fontSize = KillerType.Body,

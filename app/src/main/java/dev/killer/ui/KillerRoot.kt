@@ -1,5 +1,6 @@
 package dev.killer.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -38,6 +39,15 @@ import kotlinx.coroutines.delay
 fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    BackHandler(enabled = state.screen == Screen.Closing || state.screen == Screen.QuietMode) {
+        when (state.screen) {
+            Screen.Closing -> if (state.phase == ClosingPhase.Running) viewModel.cancelClosing() else viewModel.goHome()
+            Screen.QuietMode -> viewModel.goHome()
+            Screen.Permissions -> if (state.usageAccess && state.accessibility) viewModel.continueFromPermissions()
+            Screen.Home -> Unit
+        }
+    }
+
     // Returning from a system settings page must re-read the permissions.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshPermissions()
@@ -74,7 +84,12 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                     )
 
                     Screen.Home -> HomeScreen(
-                        apps = state.apps,
+                        apps = state.visibleApps,
+                        runningCount = state.apps.size,
+                        closableCount = state.closable.size,
+                        loading = state.loading,
+                        tab = state.tab,
+                        onTab = viewModel::setTab,
                         onCloseOne = viewModel::closeOne,
                         onCloseAll = viewModel::closeAll,
                         onQuietMode = viewModel::openQuietMode,
@@ -88,6 +103,7 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         progress = state.ringProgress,
                         closedCount = state.closedCount,
                         keptSafeCount = state.keptSafeCount,
+                        skippedCount = state.skippedCount,
                         undoAvailable = state.undoAvailable,
                         undoSecondsLeft = state.undoSecondsLeft,
                         onCancel = viewModel::cancelClosing,
@@ -97,9 +113,9 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
 
                     Screen.QuietMode -> QuietModeScreen(
                         apps = state.apps,
-                        closableCount = state.closable.size,
-                        keptCount = state.keptRows.size,
-                        keptRows = state.keptRows,
+                        closableCount = state.quietTargets.size,
+                        keptCount = state.quietKeptRows.size,
+                        keptRows = state.quietKeptRows,
                         intention = state.intention,
                         keptSafeExpanded = state.keptSafeExpanded,
                         onSelectIntention = viewModel::setIntention,
