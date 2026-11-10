@@ -39,7 +39,7 @@ data class HomeApp(
 
     /** "Running, 42 min" / "Music playing, 18 min" — the concept's secondary line. */
     fun detail(): String {
-        val prefix = keepReason?.label ?: "Running"
+        val prefix = keepReason?.label ?: "Detected"
         return if (runningMinutes > 0) "$prefix • $runningMinutes min foreground in 7 days" else prefix
     }
 }
@@ -163,7 +163,8 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 val core = installed.filter { it.packageName != context.packageName && (AppCategories.isCore(it.packageName) || isLauncher(it.packageName)) }.map(::row)
                 Triple(running, other, core)
             }
-            _state.update { it.copy(apps = rows.first, otherApps = rows.second, coreApps = rows.third, loading = false) }
+            _state.update { it.copy(apps = rows.first, otherApps = rows.second, coreApps = rows.third, loading = false,
+                selectedOther = it.selectedOther.intersect(rows.second.filterNot { row -> row.isKept }.map { row -> row.packageName }.toSet())) }
         }
     }
 

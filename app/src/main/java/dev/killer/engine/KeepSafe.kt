@@ -148,7 +148,7 @@ enum class Intention(
 ) {
     Focus(
         id = "focus",
-        title = "Focus for 25 min",
+        title = "Focus",
         description = "Quiet everything except what helps you focus.",
         keepLabel = "Keeps Music + Notes",
         keeps = setOf(KeptFunction.Music, KeptFunction.Notes),
@@ -164,8 +164,8 @@ enum class Intention(
     ),
     BatterySaver(
         id = "battery",
-        title = "Battery Saver",
-        description = "Hold on to charge. Keep only what gets you home.",
+        title = "Getting home",
+        description = "Keep what gets you home.",
         keepLabel = "Keeps Maps + Messages",
         keeps = setOf(KeptFunction.Maps, KeptFunction.Messaging),
         emoji = "🔋",

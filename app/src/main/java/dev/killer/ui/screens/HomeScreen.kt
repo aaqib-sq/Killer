@@ -156,7 +156,7 @@ fun HomeScreen(
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (loading) {
                 Text("Loading apps…", color = KillerColors.TextSecondary, modifier = Modifier.padding(24.dp))
-            } else if (apps.isEmpty() && tab == AppTab.Running) {
+            } else if (apps.isEmpty() && tab == AppTab.Running && query.isBlank()) {
                 EmptyState(onQuietMode = onQuietMode)
             } else if (apps.isEmpty()) {
                 Text("No apps found", color = KillerColors.TextSecondary, modifier = Modifier.padding(24.dp))

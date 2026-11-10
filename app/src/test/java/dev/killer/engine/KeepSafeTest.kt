@@ -90,15 +90,15 @@ class KeepSafeTest {
 
     @Test
     fun intentionCopyMatchesTheConcept() {
-        assertEquals("Focus for 25 min", Intention.Focus.title)
+        assertEquals("Focus", Intention.Focus.title)
         assertEquals("Keeps Music + Notes", Intention.Focus.keepLabel)
         assertEquals("Bedtime", Intention.Bedtime.title)
         assertEquals("Keeps Alarm + Music", Intention.Bedtime.keepLabel)
-        assertEquals("Battery Saver", Intention.BatterySaver.title)
+        assertEquals("Getting home", Intention.BatterySaver.title)
         assertEquals("Keeps Maps + Messages", Intention.BatterySaver.keepLabel)
         assertEquals("Quiet everything except what helps you focus.", Intention.Focus.description)
         assertEquals("Wind down. Only the essentials stay awake.", Intention.Bedtime.description)
-        assertEquals("Hold on to charge. Keep only what gets you home.", Intention.BatterySaver.description)
+        assertEquals("Keep what gets you home.", Intention.BatterySaver.description)
     }
 
     /** Helper mirroring the context-free part of KeepSafe.reasonToKeep. */

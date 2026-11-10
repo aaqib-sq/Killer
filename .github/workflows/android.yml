@@ -110,13 +110,14 @@ jobs:
           echo "$BADGING" | grep -qE "^(sdkVersion|minSdkVersion):'33'" || fail "wrong minSdk"
           echo "$BADGING" | grep -q "targetSdkVersion:'34'" || fail "wrong targetSdk"
 
-      # Inspect both Android resources and Compose/Kotlin literals (which live in dex).
+      # Check resource and dex strings, including Compose copy compiled into dex.
       - name: No forbidden claims in shipped copy
         run: |
           set -euo pipefail
-          if grep -RinE 'close(s|d|ing)? (apps? )?from recents|dismiss(es|ed|ing)? (apps? |cards? )?(from )?recents|[0-9]+([.][0-9]+)?[[:space:]]*(gb|mb)[[:space:]]*(freed|free)|[0-9]+%[[:space:]]*boosted|boost(ing|ed)?' app/src/main/java/dev/killer/ui app/src/main/res/values; then
-            echo "::error::forbidden Recents or invented performance claim"; exit 1
-          fi
+          python3 scripts/test_check_claims.py
+          APK=$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
+          python3 scripts/check_claims.py --apk "$APK" --aapt "$AAPT"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

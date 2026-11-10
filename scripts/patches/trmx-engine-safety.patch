@@ -1,9 +1,6 @@
 --- AppKillerEngine.kt
 +++ AppKillerEngine.kt
-@@ -697,10 +697,36 @@
-         return candidate
-     }
- 
+@@ -699,0 +700,25 @@
 +    /** Avoid acting on a stale Settings page from the previous queue item. */
 +    fun containsAppLabel(root: AccessibilityNodeInfo, label: String): Boolean {
 +        val stack = ArrayDeque<AccessibilityNodeInfo>()
@@ -29,30 +26,15 @@
 +    fun isLauncher(context: Context, packageName: String): Boolean =
 +        launcherPackages(context)?.contains(packageName) ?: true
 +
-     suspend fun executeKillList(
-         context: Context,
-         packagesToKill: List<String>,
-         appLabels: Map<String, String>,
+@@ -703,0 +729 @@
 +        protectedPackages: Set<String> = emptySet(),
-         onProgress: (KillProgress) -> Unit = {},
-         serviceProvider: () -> AppKillerAccessibilityService? = { AppKillerAccessibilityService.instance },
-         startActivityAction: (Intent) -> Unit = { context.startActivity(it) },
-@@ -711,8 +737,9 @@
- 
-         // 1. Enforce CORE blocklist in engine
-         for (pkg in packagesToKill) {
+@@ -714,2 +740,3 @@
 -            if (AppCategories.isCore(pkg)) {
 -                skipped.add(pkg to "Core system package (protected)")
 +            if (AppCategories.isCore(pkg) || isLauncher(context, pkg) || pkg in protectedPackages ||
 +                KeepSafe.reasonToKeep(context, pkg, appLabels[pkg] ?: pkg) != null) {
 +                skipped.add(pkg to "Protected")
-             } else {
-                 eligible.add(pkg)
-             }
-@@ -743,6 +770,13 @@
-             val label = appLabels[pkg] ?: pkg
-             onProgress(KillProgress(current = index + 1, total = total, currentPackage = pkg, currentLabel = label))
- 
+@@ -745,0 +773,7 @@
 +            // Recheck live signals immediately before opening Settings, not just at queue creation.
 +            if (isLauncher(context, pkg) || pkg in protectedPackages ||
 +                KeepSafe.reasonToKeep(context, pkg, label) != null) {
@@ -60,13 +42,7 @@
 +                continue
 +            }
 +
-             // Pre-check: if already stopped, skip immediately WITHOUT opening Settings
-             if (isPackageStopped(context, pkg)) {
-                 markPackageKilled(context, pkg)
-@@ -750,6 +784,17 @@
-                 continue
-             }
- 
+@@ -752,0 +787,11 @@
 +            val details = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
 +                data = Uri.fromParts("package", pkg, null)
 +            }
@@ -78,24 +54,12 @@
 +                continue
 +            }
 +
-             // On Android 13+ (API 33+), allow 1 repeat-on-timeout (max 2 attempts) with 3500ms timeout each
-             val maxAttempts = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) 2 else 1
-             var attempt = 0
-@@ -780,6 +825,10 @@
-                     delay(100)
- 
-                     val root = service.rootInActiveWindow ?: continue
+@@ -782,0 +828,4 @@
 +                    // Require both the resolved Settings package and this app's title.
 +                    // If an OEM hides the title, skip rather than stop the wrong app.
 +                    if (root.packageName?.toString() != settingsPackage ||
 +                        !containsAppLabel(root, label)) continue
-                     val forceStopNode = findForceStopNode(root)
-                     if (forceStopNode != null) {
-                         forceStopFound = true
-@@ -787,6 +836,13 @@
-                             forceStopDisabled = true
-                             break
-                         }
+@@ -789,0 +839,7 @@
 +                        // Signals can change while Settings is opening.
 +                        if (KeepSafe.reasonToKeep(context, pkg, label) != null ||
 +                            isLauncher(context, pkg) || pkg in protectedPackages) {
@@ -103,25 +67,13 @@
 +                            forceStopFound = true
 +                            break
 +                        }
-                         val clicked = performClick(forceStopNode)
-                         if (clicked) {
-                             forceStopClicked = true
-@@ -807,6 +863,11 @@
-                 continue
-             }
- 
+@@ -809,0 +866,5 @@
 +            if (!forceStopClicked) {
 +                if (skipped.none { it.first == pkg }) skipped.add(pkg to "Force Stop could not be clicked")
 +                continue
 +            }
 +
-             if (forceStopClicked) {
-                 val dialogStart = System.currentTimeMillis()
-                 delay(150)
-@@ -817,7 +878,13 @@
-                         null
-                     } ?: continue
- 
+@@ -820 +881,7 @@
 -                    val confirmBtn = findConfirmationDialogButton(root)
 +                    if (root.packageName?.toString() != settingsPackage) {
 +                        delay(100)
@@ -130,13 +82,7 @@
 +                    if (KeepSafe.reasonToKeep(context, pkg, label) != null ||
 +                        isLauncher(context, pkg) || pkg in protectedPackages) break
 +                    val confirmBtn = if (hasCancelButton(root)) findConfirmationDialogButton(root) else null
-                     if (confirmBtn != null && isNodeAndAncestorsEnabled(confirmBtn)) {
-                         performClick(confirmBtn)
-                         delay(250)
-@@ -825,8 +892,21 @@
-                     }
-                     delay(100)
-                 }
+@@ -828,2 +895,15 @@
 -                markPackageKilled(context, pkg)
 -                killed.add(pkg)
 +                // A click alone is not evidence of a successful stop (e.g. an
@@ -154,6 +100,3 @@
 +                } else {
 +                    skipped.add(pkg to "Could not verify force stop")
 +                }
-                 delay(150)
-             }
-         }
