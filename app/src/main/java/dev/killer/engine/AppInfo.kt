@@ -22,14 +22,3 @@ data class AppDiagnosticInfo(
     val notRunningReason: String?,
     val isActive: Boolean = inRunning,
 )
-
-data class KillerDiagnosticData(
-    val isAccessibilityEnabled: Boolean,
-    val isUsageAccessGranted: Boolean,
-    val totalInstalledApps: Int,
-    val usageStatsCount: Int,
-    val accessibilityObservedCount: Int,
-    val activityManagerFallbackCount: Int,
-    val runningCount: Int,
-    val apps: List<AppDiagnosticInfo>,
-)

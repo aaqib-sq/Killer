@@ -13,12 +13,8 @@ class KillerCopyTest {
 
     @Test
     fun keepReasonsMatchTheBriefWording() {
-        assertEquals("Music playing", KeepReason.MusicPlaying.label)
-        assertEquals("Navigating", KeepReason.Navigating.label)
-        assertEquals("On a call", KeepReason.PhoneCall.label)
-        assertEquals("Timer running", KeepReason.Timer.label)
-        assertEquals("Alarm set", KeepReason.Alarm.label)
-        assertEquals("Downloading", KeepReason.Downloading.label)
+        // Slice 7: only the core rule survives; the app-level rules are gone.
+        assertEquals("Core app", KeepReason.KillerItself.label)
     }
 
     @Test

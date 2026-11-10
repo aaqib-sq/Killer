@@ -7,10 +7,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +43,7 @@ import dev.killer.ui.components.OutlineButton
 import dev.killer.ui.components.PrimaryButton
 import dev.killer.ui.components.SecondaryButton
 import dev.killer.ui.icons.KillerIcons
+import dev.killer.ui.overlay.overlayPositionText
 import dev.killer.ui.theme.KillerColors
 import dev.killer.ui.theme.KillerDimens
 import dev.killer.ui.theme.KillerMotion
@@ -52,8 +51,9 @@ import dev.killer.ui.theme.KillerType
 
 /**
  * Screen 3 — Closing. A full-screen moment, never a toast.
- * 220dp ring, 48sp percentage, the app being closed right now, dots for the queue,
- * Cancel while running; Done state with mint ring + check + Undo for 5 seconds.
+ * 220dp ring, 48sp percentage, the app being closed right now, a seek line
+ * for the queue (Slice 7 — the dots are gone), Cancel while running;
+ * Done state with mint ring + check + Undo for 5 seconds.
  */
 @Composable
 fun ClosingScreen(
@@ -68,6 +68,8 @@ fun ClosingScreen(
     skippedDetails: List<String>,
     undoAvailable: Boolean,
     undoSecondsLeft: Int,
+    /** False when the progress overlay could not be shown (usually the "Display over other apps" permission is off on this install) — the Done screen says so plainly. */
+    overlayAvailable: Boolean,
     onCancel: () -> Unit,
     onBackHome: () -> Unit,
     onUndo: () -> Unit,
@@ -175,9 +177,28 @@ fun ClosingScreen(
         if (done && skippedDetails.isNotEmpty()) {
             TextButton(onClick = { showDetails = true }) { Text("See details") }
         }
+        if (done && !overlayAvailable) {
+            Text(
+                text = "Progress overlay off tha — 'Display over other apps' on karo, warna progress sirf beech mein dikhega.",
+                color = KillerColors.TextSecondary,
+                fontSize = KillerType.Body,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(Modifier.height(20.dp))
 
-        ProgressDots(index = index, total = total, done = done)
+        if (!done) {
+            Text(
+                text = overlayPositionText(index, total),
+                color = KillerColors.TextSecondary,
+                fontSize = KillerType.Pill,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
+        SeekLine(progress = if (done) 1f else animated, done = done)
 
         Spacer(Modifier.weight(1f))
 
@@ -234,26 +255,26 @@ private fun ProgressRing(progress: Float, done: Boolean) {
     }
 }
 
-/** Small dots through the queue: amber-free, coral while closing, mint when finished. */
+/**
+ * Seek line (Slice 7 — replaces the dots): a full-width track with a fill
+ * proportional to the ring progress, like a video seek bar. Coral while
+ * closing, mint when finished. Same geometry as the overlay's seek line.
+ */
 @Composable
-private fun ProgressDots(index: Int, total: Int, done: Boolean) {
-    if (total <= 0) return
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        repeat(total.coerceAtMost(12)) { i ->
-            val finished = done || i < index - 1
-            val current = !done && i == index - 1
-            Box(
-                modifier = Modifier
-                    .size(width = if (finished || current) 24.dp else 10.dp, height = 10.dp)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(
-                        when {
-                            finished -> KillerColors.Mint
-                            current -> KillerColors.Coral
-                            else -> KillerColors.Border
-                        },
-                    ),
-            )
-        }
+private fun SeekLine(progress: Float, done: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(KillerColors.Surface2),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                .height(8.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(if (done) KillerColors.Mint else KillerColors.Coral),
+        )
     }
 }

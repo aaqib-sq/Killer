@@ -7,18 +7,18 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -69,6 +69,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
+
+/** Log tag for the overlay + progress path (read with `adb logcat -s Killer`). */
+private const val TAG = "Killer"
 
 /**
  * "Display over other apps" permission, checked the real way: the system
@@ -195,7 +198,9 @@ class ClosingOverlayController(
      */
     suspend fun showAndAwait(): Boolean = withContext(Dispatchers.Main) {
         if (overlayView != null) return@withContext true
-        if (!hasOverlayPermission(appContext)) return@withContext false
+        val permitted = hasOverlayPermission(appContext)
+        Log.d(TAG, "showAndAwait: overlay permission granted=$permitted")
+        if (!permitted) return@withContext false
         try {
             val view = ComposeView(appContext)
             // The window has no Activity, so Compose needs its owners set
@@ -234,6 +239,8 @@ class ClosingOverlayController(
             windowManager.addView(view, params)
             owner.onResume()
             overlayView = view
+            var lastLoggedIndex = -1
+            var lastLoggedLabel = ""
             collectJob = scope.launch {
                 state.collect { s ->
                     uiState.value = OverlayUiState(
@@ -242,20 +249,30 @@ class ClosingOverlayController(
                         total = s.closingTotal,
                         label = s.closingLabel,
                     )
+                    // Log only when the queue actually moves: the ring easing
+                    // would otherwise flood logcat on every animation frame.
+                    if (s.closingIndex != lastLoggedIndex || s.closingLabel != lastLoggedLabel) {
+                        lastLoggedIndex = s.closingIndex
+                        lastLoggedLabel = s.closingLabel
+                        Log.d(TAG, "overlay progress: app ${s.closingIndex}/${s.closingTotal} ${s.closingLabel}")
+                    }
                 }
             }
             awaitFirstLayout(view)
+            Log.d(TAG, "showAndAwait: window shown")
             true
         } catch (_: Exception) {
-            hide()
+            Log.d(TAG, "showAndAwait: failed, falling back to in-app screen")
+            hide("show-failed")
             false
         }
     }
 
     /** Removes the window. Safe to call repeatedly, from any thread. */
-    fun hide() {
+    fun hide(reason: String = "unknown") {
+        Log.d(TAG, "hide: $reason")
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            Handler(Looper.getMainLooper()).post { hide() }
+            Handler(Looper.getMainLooper()).post { hide(reason) }
             return
         }
         collectJob?.cancel()
@@ -372,7 +389,7 @@ private fun OverlayCard(ui: OverlayUiState, onCancel: () -> Unit) {
 
         Spacer(Modifier.height(20.dp))
 
-        OverlayDots(index = ui.index, total = ui.total)
+        OverlaySeekLine(progress = ui.progress)
 
         Spacer(Modifier.weight(1f))
 
@@ -382,27 +399,27 @@ private fun OverlayCard(ui: OverlayUiState, onCancel: () -> Unit) {
     }
 }
 
-/** Small dots through the queue, same as the Closing screen. */
+/**
+ * Seek line (Slice 7 — replaces the dots): a full-width track with a Coral
+ * fill proportional to the ring progress, like a video seek bar. The queue
+ * position stays as the "App X of Y" text above it.
+ */
 @Composable
-private fun OverlayDots(index: Int, total: Int) {
-    if (total <= 0) return
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        repeat(total.coerceAtMost(12)) { i ->
-            val finished = i < index - 1
-            val current = i == index - 1
-            Box(
-                modifier = Modifier
-                    .size(width = if (finished || current) 24.dp else 10.dp, height = 10.dp)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(
-                        when {
-                            finished -> KillerColors.Mint
-                            current -> KillerColors.Coral
-                            else -> KillerColors.Border
-                        },
-                    ),
-            )
-        }
+private fun OverlaySeekLine(progress: Float) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(KillerColors.Surface2),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                .height(8.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(KillerColors.Coral),
+        )
     }
 }
 

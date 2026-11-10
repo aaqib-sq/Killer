@@ -131,6 +131,7 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         skippedDetails = state.skippedDetails,
                         undoAvailable = state.undoAvailable,
                         undoSecondsLeft = state.undoSecondsLeft,
+                        overlayAvailable = state.overlayAvailable,
                         onCancel = viewModel::cancelClosing,
                         onBackHome = viewModel::goHome,
                         onUndo = viewModel::undo,
