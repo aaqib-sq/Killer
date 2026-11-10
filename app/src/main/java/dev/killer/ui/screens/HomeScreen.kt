@@ -58,6 +58,11 @@ fun HomeScreen(
     apps: List<HomeApp>,
     query: String,
     onQuery: (String) -> Unit,
+    selectedRunning: Set<String>,
+    onToggleRunning: (String) -> Unit,
+    onSelectRunning: () -> Unit,
+    onClearRunning: () -> Unit,
+    onCloseSelectedRunning: () -> Unit,
     selectedOther: Set<String>,
     onToggleOther: (String) -> Unit,
     onSelectOther: () -> Unit,
@@ -72,7 +77,6 @@ fun HomeScreen(
     onTab: (AppTab) -> Unit,
     onCloseOne: (HomeApp) -> Unit,
     onCloseAll: () -> Unit,
-    onQuietMode: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize().background(KillerColors.Background)) {
 
@@ -101,30 +105,6 @@ fun HomeScreen(
             )
 
             Spacer(Modifier.height(12.dp))
-
-            // Quiet Mode is the concept's alternative Home; this is its front door.
-            val (quietScale, quietInteraction) = tapScale()
-            Row(
-                modifier = Modifier
-                    .height(KillerDimens.MinTapTarget)
-                    .then(quietScale)
-                    .clip(RoundedCornerShape(KillerDimens.ButtonRadius))
-                    .background(KillerColors.Surface2)
-                    .clickableNoRipple(true, quietInteraction, onQuietMode)
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                KillerIcons.Draw(KillerIcons.Moon, 15, KillerColors.TextSecondary)
-                Spacer(Modifier.size(8.dp))
-                Text(
-                    text = "Quiet Mode",
-                    color = KillerColors.TextPrimary,
-                    fontSize = KillerType.Pill,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AppTab.entries.forEach { option ->
                     val interaction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -142,7 +122,12 @@ fun HomeScreen(
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(value = query, onValueChange = onQuery, singleLine = true,
                 label = { Text("Search apps or packages") }, modifier = Modifier.fillMaxWidth())
+            // Select controls sit above the list, on Running and Other alike.
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (tab == AppTab.Running) {
+                    TextButton(onClick = onSelectRunning) { Text("Select all") }
+                    TextButton(onClick = onClearRunning) { Text("Clear") }
+                }
                 if (tab == AppTab.Other) {
                     TextButton(onClick = onSelectOther) { Text("Select all") }
                     TextButton(onClick = onClearOther) { Text("Clear") }
@@ -157,7 +142,7 @@ fun HomeScreen(
             if (loading) {
                 Text("Loading apps…", color = KillerColors.TextSecondary, modifier = Modifier.padding(24.dp))
             } else if (apps.isEmpty() && tab == AppTab.Running && query.isBlank()) {
-                EmptyState(onQuietMode = onQuietMode)
+                EmptyState()
             } else if (apps.isEmpty()) {
                 Text("No apps found", color = KillerColors.TextSecondary, modifier = Modifier.padding(24.dp))
             } else {
@@ -176,8 +161,11 @@ fun HomeScreen(
                                 shrinkVertically(tween(KillerMotion.STANDARD_MS)),
                         ) {
                             AppCard(app = app, onClose = { onCloseOne(app) },
-                                selected = tab == AppTab.Other && app.packageName in selectedOther,
-                                onSelect = if (tab == AppTab.Other && !app.isKept) ({ onToggleOther(app.packageName) }) else null)
+                                selected = (tab == AppTab.Running && app.packageName in selectedRunning) ||
+                                    (tab == AppTab.Other && app.packageName in selectedOther),
+                                onSelect = if (!app.isKept && (tab == AppTab.Running || tab == AppTab.Other)) {
+                                    if (tab == AppTab.Running) ({ onToggleRunning(app.packageName) }) else ({ onToggleOther(app.packageName) })
+                                } else null)
                         }
                     }
                     item { Spacer(Modifier.height(8.dp)) }
@@ -193,9 +181,17 @@ fun HomeScreen(
                 .padding(horizontal = KillerDimens.PagePadding, vertical = 12.dp),
         ) {
             PrimaryButton(
-                label = if (tab == AppTab.Other) "Close selected • ${selectedOther.size}" else "Close All • $closableCount",
+                label = when (tab) {
+                    AppTab.Running -> if (selectedRunning.isNotEmpty()) "Close selected • ${selectedRunning.size}" else "Close All • $closableCount"
+                    AppTab.Other -> "Close selected • ${selectedOther.size}"
+                    AppTab.Core -> "Close All • $closableCount"
+                },
                 enabled = !loading && ((tab == AppTab.Running && closableCount > 0) || (tab == AppTab.Other && selectedOther.isNotEmpty())),
-                onClick = if (tab == AppTab.Other) onCloseSelected else onCloseAll,
+                onClick = when (tab) {
+                    AppTab.Running -> if (selectedRunning.isNotEmpty()) onCloseSelectedRunning else onCloseAll
+                    AppTab.Other -> onCloseSelected
+                    AppTab.Core -> onCloseAll
+                },
                 height = KillerDimens.PrimaryButtonHeight.value.toInt(),
             )
         }
@@ -296,7 +292,7 @@ private fun AppIconTile(app: HomeApp) {
 }
 
 @Composable
-private fun EmptyState(onQuietMode: () -> Unit) {
+private fun EmptyState() {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = KillerDimens.PagePadding),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -333,29 +329,6 @@ private fun EmptyState(onQuietMode: () -> Unit) {
                     color = KillerColors.TextSecondary,
                     fontSize = KillerType.BodySmall,
                 )
-
-                Spacer(Modifier.height(16.dp))
-
-                // The way back to the other half of the product.
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(KillerDimens.MinTapTarget)
-                        .clip(RoundedCornerShape(KillerDimens.CardInnerRadius))
-                        .background(KillerColors.Surface2)
-                        .clickableNoRipple(true, androidx.compose.foundation.interaction.MutableInteractionSource(), onQuietMode),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    KillerIcons.Draw(KillerIcons.Moon, 16, KillerColors.TextSecondary)
-                    Spacer(Modifier.size(8.dp))
-                    Text(
-                        text = "Quiet Mode",
-                        color = KillerColors.TextPrimary,
-                        fontSize = KillerType.BodySmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
             }
         }
 

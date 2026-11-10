@@ -8,8 +8,8 @@ import org.junit.Test
 
 /**
  * Keep Safe is the promise that separates Killer from a "boost" app: nothing that
- * matters is ever closed. These tests pin the seven rules and the three intentions
- * so a future edit cannot quietly drop one.
+ * matters is ever closed. These tests pin the rules so a future edit cannot
+ * quietly drop one.
  */
 class KeepSafeTest {
 
@@ -70,35 +70,6 @@ class KeepSafeTest {
     @Test
     fun unknownAppsHaveNoProtectedFunction() {
         assertTrue(functions("com.example.game", "Game").isEmpty())
-    }
-
-    @Test
-    fun intentionsKeepExactlyWhatTheyPromise() {
-        // The concept's three cards, and the exact labels it prints.
-        assertTrue(KeepSafe.keptByIntention("com.spotify.music", "Spotify", Intention.Focus))
-        assertTrue(KeepSafe.keptByIntention("com.google.android.keep", "Keep Notes", Intention.Focus))
-        assertFalse(KeepSafe.keptByIntention("com.instagram.android", "Instagram", Intention.Focus))
-
-        assertTrue(KeepSafe.keptByIntention("com.spotify.music", "Spotify", Intention.Bedtime))
-        assertTrue(KeepSafe.keptByIntention("com.google.android.deskclock", "Clock", Intention.Bedtime))
-        assertFalse(KeepSafe.keptByIntention("com.google.android.apps.maps", "Maps", Intention.Bedtime))
-
-        assertTrue(KeepSafe.keptByIntention("com.google.android.apps.maps", "Maps", Intention.BatterySaver))
-        assertTrue(KeepSafe.keptByIntention("com.whatsapp", "WhatsApp", Intention.BatterySaver))
-        assertFalse(KeepSafe.keptByIntention("com.spotify.music", "Spotify", Intention.BatterySaver))
-    }
-
-    @Test
-    fun intentionCopyMatchesTheConcept() {
-        assertEquals("Focus", Intention.Focus.title)
-        assertEquals("Keeps Music + Notes", Intention.Focus.keepLabel)
-        assertEquals("Bedtime", Intention.Bedtime.title)
-        assertEquals("Keeps Alarm + Music", Intention.Bedtime.keepLabel)
-        assertEquals("Getting home", Intention.BatterySaver.title)
-        assertEquals("Keeps Maps + Messages", Intention.BatterySaver.keepLabel)
-        assertEquals("Quiet everything except what helps you focus.", Intention.Focus.description)
-        assertEquals("Wind down. Only the essentials stay awake.", Intention.Bedtime.description)
-        assertEquals("Keep what gets you home.", Intention.BatterySaver.description)
     }
 
     /** Helper mirroring the context-free part of KeepSafe.reasonToKeep. */

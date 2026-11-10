@@ -8,7 +8,6 @@ import dev.killer.engine.AppInfo
 import dev.killer.engine.AppKillerAccessibilityService
 import dev.killer.engine.AppKillerEngine
 import dev.killer.engine.AppCategories
-import dev.killer.engine.Intention
 import dev.killer.engine.KeepReason
 import dev.killer.engine.KeepSafe
 import dev.killer.ui.overlay.ClosingOverlayController
@@ -23,8 +22,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Exactly four screens. Quiet Mode is opened from Home; it is not a fifth tab. */
-enum class Screen { Permissions, Home, Closing, QuietMode, Diagnostics }
+/** Exactly four screens. No nav library: four destinations and one back rule is less machinery than a graph. */
+enum class Screen { Permissions, Home, Closing, Diagnostics }
 enum class AppTab { Running, Other, Core }
 
 /** Closing screen phases, matching the concept's idle → running → done. */
@@ -69,11 +68,9 @@ data class KillerUiState(
     val diagnostics: dev.killer.engine.KillerDiagnosticData? = null,
     val undoSecondsLeft: Int = 0,
     val undoAvailable: Boolean = false,
-    val intention: Intention = Intention.Focus,
-    val keptSafeExpanded: Boolean = false,
-    val unkept: Set<String> = emptySet(),
     val toast: String? = null,
     val query: String = "",
+    val selectedRunning: Set<String> = emptySet(),
     val selectedOther: Set<String> = emptySet(),
     val pendingTargets: List<HomeApp> = emptyList(),
     val pendingKept: List<HomeApp> = emptyList(),
@@ -81,10 +78,6 @@ data class KillerUiState(
     val count: Int get() = apps.size
     val closable: List<HomeApp> get() = apps.filter { !it.isKept }
     val keptRows: List<HomeApp> get() = apps.filter { it.isKept }
-    val quietKeptRows: List<HomeApp> get() = apps.filter {
-        it.isKept || (it.packageName !in unkept && KeepSafe.keptByIntention(it.packageName, it.label, intention))
-    }
-    val quietTargets: List<HomeApp> get() = apps.filterNot { app -> quietKeptRows.any { it.packageName == app.packageName } }
     val visibleApps: List<HomeApp> get() = when (tab) {
         AppTab.Running -> apps
         AppTab.Other -> otherApps
@@ -185,6 +178,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 Triple(running, other, core)
             }
             _state.update { it.copy(apps = rows.first, otherApps = rows.second, coreApps = rows.third, loading = false,
+                selectedRunning = it.selectedRunning.intersect(rows.first.filterNot { row -> row.isKept }.map { row -> row.packageName }.toSet()),
                 selectedOther = it.selectedOther.intersect(rows.second.filterNot { row -> row.isKept }.map { row -> row.packageName }.toSet())) }
         }
     }
@@ -220,6 +214,15 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setQuery(query: String) = _state.update { it.copy(query = query) }
+    fun toggleRunning(packageName: String) = _state.update {
+        it.copy(selectedRunning = if (packageName in it.selectedRunning) it.selectedRunning - packageName else it.selectedRunning + packageName)
+    }
+    fun selectRunning() = _state.update { it.copy(selectedRunning = it.apps.filterNot { row -> row.isKept }.map { row -> row.packageName }.toSet()) }
+    fun clearRunning() = _state.update { it.copy(selectedRunning = emptySet()) }
+    fun closeSelectedRunning() {
+        val s = _state.value
+        startClosing(s.apps.filter { it.packageName in s.selectedRunning && !it.isKept }, s.keptRows)
+    }
     fun toggleOther(packageName: String) = _state.update {
         it.copy(selectedOther = if (packageName in it.selectedOther) it.selectedOther - packageName else it.selectedOther + packageName)
     }
@@ -240,16 +243,6 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun openQuietMode() = _state.update { it.copy(screen = Screen.QuietMode, keptSafeExpanded = false) }
-
-    fun setIntention(intention: Intention) = _state.update { it.copy(intention = intention, unkept = emptySet()) }
-
-    fun toggleKeptSafe() = _state.update { it.copy(keptSafeExpanded = !it.keptSafeExpanded) }
-
-    fun unkeep(packageName: String) = _state.update { it.copy(unkept = it.unkept + packageName) }
-
-    fun rekeep(packageName: String) = _state.update { it.copy(unkept = it.unkept - packageName) }
-
     fun showToast(text: String?) = _state.update { it.copy(toast = text) }
 
     // --------------------------------------------------------------- closing
@@ -260,11 +253,6 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun closeAll() = startClosing(_state.value.closable, _state.value.keptRows)
-
-    fun makeItQuiet() {
-        val s = _state.value
-        startClosing(s.quietTargets, s.quietKeptRows)
-    }
 
     fun dismissConfirmation() = _state.update { it.copy(pendingTargets = emptyList(), pendingKept = emptyList()) }
     fun confirmClosing() {
@@ -344,6 +332,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update {
                     it.copy(
                         phase = ClosingPhase.Done,
+                        selectedRunning = emptySet(),
                         selectedOther = emptySet(),
                         ringProgress = 1f,
                         closedCount = report.killed.size,

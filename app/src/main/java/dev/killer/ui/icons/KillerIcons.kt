@@ -67,13 +67,6 @@ object KillerIcons {
         "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11",
     )
 
-    /** `ShieldCheck` — Kept safe. */
-    val ShieldCheck: ImageVector = lucide(
-        "ShieldCheck",
-        "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
-        "m9 12 2 2 4-4",
-    )
-
     /** `Lock` — each kept-safe row. */
     val Lock: ImageVector = lucide(
         "Lock",
@@ -81,20 +74,8 @@ object KillerIcons {
         "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z",
     )
 
-    /** `Moon` — Quiet Mode pill. */
-    val Moon: ImageVector = lucide("Moon", "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z")
-
     /** `Check` — mint check for Done and for enabled permissions. */
     val Check: ImageVector = lucide("Check", "M20 6 9 17l-5-5")
-
-    /** `ChevronDown` — Kept safe disclosure. */
-    val ChevronDown: ImageVector = lucide("ChevronDown", "m6 9 6 6 6-6")
-
-    /** `Zap` — Battery Saver intention. */
-    val Zap: ImageVector = lucide(
-        "Zap",
-        "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z",
-    )
 
     /**
      * `Layers` — the optional "Keep progress visible" permission card.

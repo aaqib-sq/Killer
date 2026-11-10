@@ -29,7 +29,6 @@ import dev.killer.ui.screens.DiagnosticsScreen
 import dev.killer.ui.screens.ClosingScreen
 import dev.killer.ui.screens.HomeScreen
 import dev.killer.ui.screens.PermissionsScreen
-import dev.killer.ui.screens.QuietModeScreen
 import dev.killer.ui.theme.KillerColors
 import dev.killer.ui.theme.KillerMotion
 import kotlinx.coroutines.delay
@@ -42,10 +41,10 @@ import kotlinx.coroutines.delay
 fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = state.screen == Screen.Closing || state.screen == Screen.QuietMode || state.screen == Screen.Diagnostics) {
+    BackHandler(enabled = state.screen == Screen.Closing || state.screen == Screen.Diagnostics) {
         when (state.screen) {
             Screen.Closing -> if (state.phase == ClosingPhase.Running) viewModel.cancelClosing() else viewModel.goHome()
-            Screen.QuietMode, Screen.Diagnostics -> viewModel.goHome()
+            Screen.Diagnostics -> viewModel.goHome()
             Screen.Permissions -> if (state.usageAccess && state.accessibility) viewModel.continueFromPermissions()
             Screen.Home -> Unit
         }
@@ -54,7 +53,7 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
     // Returning from a system settings page must re-read the permissions.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshPermissions()
-        if (state.screen == Screen.Home || state.screen == Screen.QuietMode) {
+        if (state.screen == Screen.Home) {
             viewModel.loadApps()
         }
     }
@@ -102,6 +101,11 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         apps = state.visibleApps.filter { it.label.contains(state.query, true) || it.packageName.contains(state.query, true) },
                         query = state.query,
                         onQuery = viewModel::setQuery,
+                        selectedRunning = state.selectedRunning,
+                        onToggleRunning = viewModel::toggleRunning,
+                        onSelectRunning = viewModel::selectRunning,
+                        onClearRunning = viewModel::clearRunning,
+                        onCloseSelectedRunning = viewModel::closeSelectedRunning,
                         selectedOther = state.selectedOther,
                         onToggleOther = viewModel::toggleOther,
                         onSelectOther = viewModel::selectOther,
@@ -116,7 +120,6 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         onTab = viewModel::setTab,
                         onCloseOne = viewModel::closeOne,
                         onCloseAll = viewModel::closeAll,
-                        onQuietMode = viewModel::openQuietMode,
                     )
 
                     Screen.Closing -> ClosingScreen(
@@ -137,20 +140,6 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                     )
 
                     Screen.Diagnostics -> DiagnosticsScreen(state.diagnostics, viewModel::openDiagnostics, viewModel::goHome)
-
-                    Screen.QuietMode -> QuietModeScreen(
-                        apps = state.apps,
-                        closableCount = state.quietTargets.size,
-                        keptCount = state.quietKeptRows.size,
-                        keptRows = state.quietKeptRows,
-                        intention = state.intention,
-                        keptSafeExpanded = state.keptSafeExpanded,
-                        onSelectIntention = viewModel::setIntention,
-                        onToggleKeptSafe = viewModel::toggleKeptSafe,
-                        onUnkeep = viewModel::unkeep,
-                        onMakeItQuiet = viewModel::makeItQuiet,
-                        onBack = viewModel::goHome,
-                    )
                 }
             }
         }

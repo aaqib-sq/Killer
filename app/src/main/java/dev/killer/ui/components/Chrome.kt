@@ -69,7 +69,7 @@ fun Wordmark(fontSize: Int = 20) {
     )
 }
 
-/** Small pill used for "Setup", "{n} running", "Quiet Mode". */
+/** Small pill used for "Setup" and "{n} running". */
 @Composable
 fun Pill(
     text: String,
