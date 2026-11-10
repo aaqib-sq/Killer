@@ -44,12 +44,12 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.ViewTreeLifecycleOwner
-import androidx.lifecycle.ViewTreeViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
-import androidx.savedstate.ViewTreeSavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import dev.killer.ui.KillerUiState
 import dev.killer.ui.components.OutlineButton
 import dev.killer.ui.theme.KillerColors
@@ -198,9 +198,9 @@ class ClosingOverlayController(
             // explicitly — otherwise it crashes on attach (Slice 3 bug).
             val owner = OverlayLifecycleOwner()
             overlayOwner = owner
-            ViewTreeLifecycleOwner.set(view, owner)
-            ViewTreeViewModelStoreOwner.set(view, owner)
-            ViewTreeSavedStateRegistryOwner.set(view, owner)
+            view.setViewTreeLifecycleOwner(owner)
+            view.setViewTreeViewModelStoreOwner(owner)
+            view.setViewTreeSavedStateRegistryOwner(owner)
             owner.onCreate()
             owner.onStart()
             view.setContent {
