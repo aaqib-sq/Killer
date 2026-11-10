@@ -50,6 +50,8 @@ data class KillerUiState(
     val screen: Screen = Screen.Home,
     val usageAccess: Boolean = false,
     val accessibility: Boolean = false,
+    /** Optional: only keeps the closing progress visible above Settings. Never gates closing. */
+    val overlayPermission: Boolean = false,
     val apps: List<HomeApp> = emptyList(),
     val otherApps: List<HomeApp> = emptyList(),
     val coreApps: List<HomeApp> = emptyList(),
