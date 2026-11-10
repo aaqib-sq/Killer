@@ -120,7 +120,7 @@ fun QuietModeScreen(
                 .padding(20.dp),
         ) {
             Text(
-                text = "${apps.size}",
+                text = "$closableCount",
                 color = KillerColors.TextPrimary,
                 fontSize = KillerType.DisplayNumber,
                 fontWeight = FontWeight.ExtraBold,
@@ -128,7 +128,7 @@ fun QuietModeScreen(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "apps making noise",
+                text = "apps available to close",
                 color = KillerColors.TextSecondary,
                 fontSize = KillerType.Body,
             )

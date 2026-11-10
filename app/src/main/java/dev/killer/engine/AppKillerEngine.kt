@@ -710,15 +710,17 @@ object AppKillerEngine {
         return false
     }
 
-    /** Protect every installed launcher, not just known OEM package names. */
-    fun isLauncher(context: Context, packageName: String): Boolean = try {
+    /** Null means the package manager failed; callers must fail closed. */
+    fun launcherPackages(context: Context): Set<String>? = try {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         context.packageManager.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0L))
-            .any { it.activityInfo?.packageName == packageName }
+            .mapNotNull { it.activityInfo?.packageName }.toSet()
     } catch (_: Exception) {
-        // Fail closed if package manager cannot tell us what the launchers are.
-        true
+        null
     }
+
+    fun isLauncher(context: Context, packageName: String): Boolean =
+        launcherPackages(context)?.contains(packageName) ?: true
 
     suspend fun executeKillList(
         context: Context,
@@ -782,6 +784,17 @@ object AppKillerEngine {
                 continue
             }
 
+            val details = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", pkg, null)
+            }
+            val settingsPackage = context.packageManager.resolveActivity(
+                details, PackageManager.ResolveInfoFlags.of(0L)
+            )?.activityInfo?.packageName
+            if (settingsPackage == null) {
+                skipped.add(pkg to "Settings app not found")
+                continue
+            }
+
             // On Android 13+ (API 33+), allow 1 repeat-on-timeout (max 2 attempts) with 3500ms timeout each
             val maxAttempts = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) 2 else 1
             var attempt = 0
@@ -814,13 +827,7 @@ object AppKillerEngine {
                     val root = service.rootInActiveWindow ?: continue
                     // Require both the resolved Settings package and this app's title.
                     // If an OEM hides the title, skip rather than stop the wrong app.
-                    val details = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", pkg, null)
-                    }
-                    val settingsPackage = context.packageManager.resolveActivity(
-                        details, PackageManager.ResolveInfoFlags.of(0L)
-                    )?.activityInfo?.packageName
-                    if (settingsPackage == null || root.packageName?.toString() != settingsPackage ||
+                    if (root.packageName?.toString() != settingsPackage ||
                         !containsAppLabel(root, label)) continue
                     val forceStopNode = findForceStopNode(root)
                     if (forceStopNode != null) {
@@ -856,6 +863,11 @@ object AppKillerEngine {
                 continue
             }
 
+            if (!forceStopClicked) {
+                if (skipped.none { it.first == pkg }) skipped.add(pkg to "Force Stop could not be clicked")
+                continue
+            }
+
             if (forceStopClicked) {
                 val dialogStart = System.currentTimeMillis()
                 delay(150)
@@ -866,6 +878,10 @@ object AppKillerEngine {
                         null
                     } ?: continue
 
+                    if (root.packageName?.toString() != settingsPackage) {
+                        delay(100)
+                        continue
+                    }
                     if (KeepSafe.reasonToKeep(context, pkg, label) != null ||
                         isLauncher(context, pkg) || pkg in protectedPackages) break
                     val confirmBtn = if (hasCancelButton(root)) findConfirmationDialogButton(root) else null

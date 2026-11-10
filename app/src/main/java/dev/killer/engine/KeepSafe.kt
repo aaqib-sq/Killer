@@ -31,8 +31,8 @@ object KeepSafe {
 
         // AudioManager reports device-wide activity, not the originating app. Keep
         // every candidate while audio/call is active rather than guess a package.
-        if (isCallActive(context)) return KeepReason.PhoneCall
-        if (isMusicActive(context)) return KeepReason.MusicPlaying
+        if (isCallActive(context)) return KeepReason.CallActive
+        if (isMusicActive(context)) return KeepReason.AudioActive
         // Android does not expose every app's navigation or timer state. A possible
         // maps/clock app is kept conservatively; labels describe uncertainty.
         if (KeptFunction.Maps in functions) return KeepReason.PossibleNavigation
@@ -124,7 +124,9 @@ enum class KeepReason(val label: String) {
     Timer("Timer running"),
     Alarm("Alarm set"),
     Downloading("Downloading"),
-    KillerItself("That's me"),
+    KillerItself("Core app"),
+    AudioActive("Music is active • kept safe"),
+    CallActive("Call is active • kept safe"),
     PossibleNavigation("May be navigating"),
     PossibleTimer("May have a timer or alarm"),
     PossibleDownload("May be downloading"),

@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +56,15 @@ import dev.killer.ui.theme.KillerType
 @Composable
 fun HomeScreen(
     apps: List<HomeApp>,
+    query: String,
+    onQuery: (String) -> Unit,
+    selectedOther: Set<String>,
+    onToggleOther: (String) -> Unit,
+    onSelectOther: () -> Unit,
+    onClearOther: () -> Unit,
+    onCloseSelected: () -> Unit,
+    onRefresh: () -> Unit,
+    onDiagnostics: () -> Unit,
     runningCount: Int,
     closableCount: Int,
     loading: Boolean,
@@ -128,7 +139,17 @@ fun HomeScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(value = query, onValueChange = onQuery, singleLine = true,
+                label = { Text("Search apps or packages") }, modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (tab == AppTab.Other) {
+                    TextButton(onClick = onSelectOther) { Text("Select all") }
+                    TextButton(onClick = onClearOther) { Text("Clear") }
+                }
+                TextButton(onClick = onRefresh) { Text("Refresh") }
+                TextButton(onClick = onDiagnostics) { Text("Diagnostics") }
+            }
         }
 
         // The list settles gently: cards fade + slide out, never just vanish.
@@ -154,7 +175,9 @@ fun HomeScreen(
                             exit = fadeOut(tween(KillerMotion.STANDARD_MS)) +
                                 shrinkVertically(tween(KillerMotion.STANDARD_MS)),
                         ) {
-                            AppCard(app = app, onClose = { onCloseOne(app) })
+                            AppCard(app = app, onClose = { onCloseOne(app) },
+                                selected = tab == AppTab.Other && app.packageName in selectedOther,
+                                onSelect = if (tab == AppTab.Other && !app.isKept) ({ onToggleOther(app.packageName) }) else null)
                         }
                     }
                     item { Spacer(Modifier.height(8.dp)) }
@@ -170,9 +193,9 @@ fun HomeScreen(
                 .padding(horizontal = KillerDimens.PagePadding, vertical = 12.dp),
         ) {
             PrimaryButton(
-                label = "Close All • $closableCount",
-                enabled = closableCount > 0 && tab == AppTab.Running && !loading,
-                onClick = onCloseAll,
+                label = if (tab == AppTab.Other) "Close selected • ${selectedOther.size}" else "Close All • $closableCount",
+                enabled = !loading && ((tab == AppTab.Running && closableCount > 0) || (tab == AppTab.Other && selectedOther.isNotEmpty())),
+                onClick = if (tab == AppTab.Other) onCloseSelected else onCloseAll,
                 height = KillerDimens.PrimaryButtonHeight.value.toInt(),
             )
         }
@@ -180,7 +203,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun AppCard(app: HomeApp, onClose: () -> Unit) {
+private fun AppCard(app: HomeApp, onClose: () -> Unit, selected: Boolean, onSelect: (() -> Unit)?) {
     val (cardScale, cardInteraction) = tapScale()
 
     Row(
@@ -215,6 +238,9 @@ private fun AppCard(app: HomeApp, onClose: () -> Unit) {
             )
         }
 
+        if (onSelect != null) {
+            androidx.compose.material3.Checkbox(checked = selected, onCheckedChange = { onSelect() })
+        }
         // One big X in a soft circle. No swipe, no long-press, no checkbox.
         val (xScale, xInteraction) = tapScale()
         Box(
