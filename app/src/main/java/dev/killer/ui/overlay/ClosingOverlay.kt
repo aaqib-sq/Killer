@@ -13,14 +13,17 @@ import android.view.ViewTreeObserver
 import android.view.WindowManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -141,31 +144,32 @@ private class OverlayLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, Saved
 }
 
 /**
- * Slice 3 — the Hibernator-style progress overlay.
+ * Slice 3 — the Hibernator-style progress overlay. Slice 6 — full screen.
  *
  * The Closing screen is a normal in-app screen, so the Settings app that the
  * engine opens for each app covers it for the whole loop. This controller
- * draws the same progress (ring + % + current app + queue position + Cancel)
- * as a small centred [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY]
- * card that floats above Settings for the whole closing loop.
+ * draws the same progress (ring + % + current app + queue position + dots +
+ * Cancel) as a full-screen opaque [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY]
+ * window that covers the whole display — status bar included — for the whole
+ * closing loop, so the Settings screens opening underneath are never seen.
  *
- * - The card mirrors the ViewModel's [KillerUiState] progress fields
+ * - The window mirrors the ViewModel's [KillerUiState] progress fields
  *   (`ringProgress`, `closingIndex`/`closingTotal`, `closingLabel`) by
  *   collecting the same StateFlow the Closing screen reads. No second copy
  *   of the progress logic exists here.
- * - The window is WRAP_CONTENT and centred, with FLAG_NOT_TOUCH_MODAL, so
- *   touches outside the card reach the Settings screens underneath and the
- *   accessibility automation keeps receiving its taps. Only the card itself
- *   (and its Cancel button) takes touches.
- * - [showAndAwait] returns only after the card is attached and laid out, so
+ * - The window is MATCH_PARENT and opaque, with FLAG_NOT_TOUCH_MODAL, so
+ *   touches outside the Cancel button reach the Settings screens underneath
+ *   and the accessibility automation keeps receiving its taps. Only the
+ *   Cancel button takes touches.
+ * - [showAndAwait] returns only after the window is attached and laid out, so
  *   no Settings intent fires before the progress UI is up.
- * - The card is a ComposeView in a WindowManager window, outside any Activity,
+ * - The window is a ComposeView in a WindowManager window, outside any Activity,
  *   so [showAndAwait] gives it its own [OverlayLifecycleOwner] (lifecycle +
  *   ViewModelStore + SavedStateRegistry) before adding the window. Without
  *   those owners Compose crashes on attach — the Slice 3 Close crash.
  * - [hide] is idempotent and is called on every exit path (Done, Cancel,
  *   ViewModel cleared, exception). If the process dies, the system removes
- *   the window with it — the card can never be left behind.
+ *   the window with it — the window can never be left behind.
  * - Without the overlay permission, [showAndAwait] returns false and closing
  *   proceeds exactly as before (in-app Closing screen, Settings during).
  */
@@ -185,7 +189,7 @@ class ClosingOverlayController(
     private var collectJob: Job? = null
 
     /**
-     * Shows the card and suspends until it is drawn (or a short timeout
+     * Shows the window and suspends until it is drawn (or a short timeout
      * elapses, so closing can never hang on the overlay). Returns false when
      * the overlay is unavailable and the caller must use the fallback.
      */
@@ -209,14 +213,24 @@ class ClosingOverlayController(
                     OverlayCard(ui = ui, onCancel = onCancel)
                 }
             }
+            // Slice 6: full-screen opaque cover. MATCH_PARENT in both axes,
+            // FLAG_LAYOUT_IN_SCREEN + SHORT_EDGES so the window also covers
+            // the status bar and the cutout area — the Settings screens
+            // opening underneath must never be seen. OPAQUE, not translucent:
+            // the content fills the window with the app background.
             val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                PixelFormat.TRANSLUCENT,
-            ).apply { gravity = Gravity.CENTER }
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.OPAQUE,
+            ).apply {
+                gravity = Gravity.FILL
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
             windowManager.addView(view, params)
             owner.onResume()
             overlayView = view
@@ -238,7 +252,7 @@ class ClosingOverlayController(
         }
     }
 
-    /** Removes the card. Safe to call repeatedly, from any thread. */
+    /** Removes the window. Safe to call repeatedly, from any thread. */
     fun hide() {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             Handler(Looper.getMainLooper()).post { hide() }
@@ -285,45 +299,68 @@ class ClosingOverlayController(
 }
 
 /**
- * The centred overlay card: ring + % + current app + queue position + Cancel.
- * Same tokens as the in-app Closing screen (Surface, Coral, 24dp card),
- * sized as a card rather than a full screen.
+ * The full-screen closing overlay: ring + % + current app + queue position +
+ * dots + Cancel, on the opaque app background. It covers the whole display
+ * so the Settings screens the engine opens are never visible while closing.
+ * Same tokens and same running layout as the in-app Closing screen.
  */
 @Composable
 private fun OverlayCard(ui: OverlayUiState, onCancel: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(300.dp)
-            .clip(RoundedCornerShape(KillerDimens.CardRadius))
-            .background(KillerColors.Surface)
-            .border(1.dp, KillerColors.Border, RoundedCornerShape(KillerDimens.CardRadius))
-            .padding(20.dp),
+            .fillMaxSize()
+            .background(KillerColors.Background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = KillerDimens.PagePadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(120.dp)) {
+        Spacer(Modifier.height(32.dp))
+
+        Text(
+            text = "Closing apps",
+            color = KillerColors.TextSecondary,
+            fontSize = KillerType.Pill,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp,
+        )
+
+        Spacer(Modifier.height(32.dp))
+
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(KillerDimens.RingSize)) {
             OverlayRing(progress = ui.progress)
-            Text(
-                text = overlayPercentText(ui.progress),
-                color = KillerColors.TextPrimary,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = KillerType.TightTracking.sp,
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = overlayPercentText(ui.progress),
+                    color = KillerColors.TextPrimary,
+                    fontSize = KillerType.ClosingPercent,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = KillerType.TightTracking.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Closing…",
+                    color = KillerColors.TextSecondary,
+                    fontSize = KillerType.Pill,
+                )
+            }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(24.dp))
 
         Text(
             text = overlayCurrentAppText(ui.label),
             color = KillerColors.TextPrimary,
-            fontSize = KillerType.CardTitle,
+            fontSize = KillerType.Headline,
             fontWeight = FontWeight.ExtraBold,
+            letterSpacing = KillerType.TightTracking.sp,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
+            lineHeight = 31.sp,
         )
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(8.dp))
 
         Text(
             text = overlayPositionText(ui.index, ui.total),
@@ -333,17 +370,47 @@ private fun OverlayCard(ui: OverlayUiState, onCancel: () -> Unit) {
             textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
+
+        OverlayDots(index = ui.index, total = ui.total)
+
+        Spacer(Modifier.weight(1f))
 
         OutlineButton(label = "Cancel", onClick = onCancel, height = 56)
+
+        Spacer(Modifier.height(20.dp))
     }
 }
 
-/** Coral ring, same geometry as the Closing screen's ring, scaled to the card. */
+/** Small dots through the queue, same as the Closing screen. */
+@Composable
+private fun OverlayDots(index: Int, total: Int) {
+    if (total <= 0) return
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(total.coerceAtMost(12)) { i ->
+            val finished = i < index - 1
+            val current = i == index - 1
+            Box(
+                modifier = Modifier
+                    .size(width = if (finished || current) 24.dp else 10.dp, height = 10.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(
+                        when {
+                            finished -> KillerColors.Mint
+                            current -> KillerColors.Coral
+                            else -> KillerColors.Border
+                        },
+                    ),
+            )
+        }
+    }
+}
+
+/** Coral ring, same geometry as the Closing screen's ring (220dp, 14dp stroke). */
 @Composable
 private fun OverlayRing(progress: Float) {
-    Canvas(modifier = Modifier.size(120.dp)) {
-        val stroke = 10.dp.toPx()
+    Canvas(modifier = Modifier.size(KillerDimens.RingSize)) {
+        val stroke = 14.dp.toPx()
         val inset = stroke / 2f
         val arcSize = Size(size.width - stroke, size.height - stroke)
         val topLeft = Offset(inset, inset)
