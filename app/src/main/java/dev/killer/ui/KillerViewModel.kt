@@ -2,6 +2,7 @@ package dev.killer.ui
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.killer.engine.AppInfo
@@ -65,6 +66,8 @@ data class KillerUiState(
     val keptSafeCount: Int = 0,
     val skippedCount: Int = 0,
     val skippedDetails: List<String> = emptyList(),
+    /** True when the progress overlay window was actually shown for this run. False means closing fell back to the in-app screen (usually the overlay permission is off on this install) — the Done screen says so. */
+    val overlayAvailable: Boolean = false,
     val undoSecondsLeft: Int = 0,
     val undoAvailable: Boolean = false,
     val toast: String? = null,
@@ -168,7 +171,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                     label = info.label,
                     runningMinutes = minutes[info.packageName] ?: 0L,
                     keepReason = if (AppCategories.isCore(info.packageName) || isLauncher(info.packageName))
-                        KeepReason.KillerItself else KeepSafe.reasonToKeep(context, info.packageName, info.label),
+                        KeepReason.KillerItself else KeepSafe.reasonToKeep(context, info.packageName),
                 )
                 val running = installed.filter { AppCategories.isRunning(it) && !isLauncher(it.packageName) }
                     .map(::row).sortedWith(compareByDescending<HomeApp> { it.isKept }.thenBy { it.label.lowercase() })
@@ -287,8 +290,13 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 // Show the progress overlay and confirm it is drawn BEFORE the
                 // first Settings intent fires. Without the overlay permission
                 // this returns false at once and closing falls back to the
-                // in-app Closing screen, exactly as before.
-                overlayController.showAndAwait()
+                // in-app Closing screen, exactly as before. The result is kept
+                // in state so the Done screen can say plainly when the overlay
+                // was off (Slice 6 diagnosis: the overlay was never on screen,
+                // most likely the permission was lost on reinstall).
+                val overlayShown = overlayController.showAndAwait()
+                Log.d("Killer", "startClosing: overlay shown=$overlayShown")
+                _state.update { it.copy(overlayAvailable = overlayShown) }
                 // Let the Closing UI render before launching the system Settings UI.
                 delay(400)
                 val labels = targets.associate { it.packageName to it.label }
@@ -303,6 +311,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                         protectedPackages = kept.map { it.packageName }.toSet(),
                         onProgress = { p ->
                             val fraction = if (p.total == 0) 0f else (p.current - 1).toFloat() / p.total
+                            Log.d("Killer", "progress: app ${p.current}/${p.total} ${p.currentLabel}")
                             _state.update {
                                 it.copy(
                                     closingIndex = p.current,
@@ -318,7 +327,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 animateRingTo(1f)
 
                 // At Done the overlay goes away and the Done screen shows.
-                overlayController.hide()
+                overlayController.hide("done")
 
                 _state.update {
                     it.copy(
@@ -338,7 +347,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 loadApps()
             } finally {
                 // Every exit path (Done, Cancel, error) removes the overlay.
-                overlayController.hide()
+                overlayController.hide("finally")
             }
         }
     }
@@ -369,7 +378,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     /** Cancel stops cleanly and returns to Home with whatever is left. */
     fun cancelClosing() {
         // The overlay's Cancel lands here too: stop immediately, drop the card.
-        overlayController.hide()
+        overlayController.hide("cancel")
         closeJob?.cancel()
         closeJob = null
         _state.update {
@@ -396,7 +405,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissToast() = _state.update { it.copy(toast = null) }
 
     override fun onCleared() {
-        overlayController.hide()
+        overlayController.hide("cleared")
         closeJob?.cancel()
         undoJob?.cancel()
         super.onCleared()

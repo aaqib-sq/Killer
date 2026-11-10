@@ -3,7 +3,6 @@ package dev.killer.engine
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.ActivityManager
 import android.app.AppOpsManager
-import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
@@ -14,10 +13,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
+import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
 import dev.killer.MainActivity
-import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.delay
@@ -65,7 +64,7 @@ object AppKillerEngine {
 
     /**
      * Shared helper to check if an app has ApplicationInfo.FLAG_STOPPED set.
-     * Reused across loadInstalledApps, loadDiagnosticData, and executeKillList pre-check.
+     * Reused across loadInstalledApps and the executeKillList pre-check.
      */
     fun isStopped(flags: Int): Boolean {
         return (flags and ApplicationInfo.FLAG_STOPPED) != 0
@@ -350,217 +349,6 @@ object AppKillerEngine {
         return result
     }
 
-    fun getActivityManagerRunningPackages(context: Context): Set<String> {
-        val result = mutableSetOf<String>()
-        try {
-            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-            val runningProcesses = am?.runningAppProcesses
-            if (runningProcesses != null) {
-                for (proc in runningProcesses) {
-                    val pkgList = proc.pkgList ?: continue
-                    for (pkg in pkgList) {
-                        val trimmed = pkg?.trim() ?: continue
-                        if (trimmed.isNotEmpty() && !AppCategories.isCore(trimmed)) {
-                            result.add(trimmed)
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-        }
-        return result
-    }
-
-    fun queryAllUsageStats(context: Context): Map<String, Long> {
-        if (!hasUsageAccessPermission(context)) return emptyMap()
-        val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return emptyMap()
-        val now = System.currentTimeMillis()
-        val map = mutableMapOf<String, Long>()
-
-        fun aggregate(stats: List<UsageStats>?) {
-            if (stats == null) return
-            for (usage in stats) {
-                val pkg = usage.packageName?.trim() ?: continue
-                if (pkg.isEmpty()) continue
-                val lastUsed = usage.lastTimeUsed
-                val lastVisible = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) usage.lastTimeVisible else 0L
-                val mostRecent = maxOf(lastUsed, lastVisible)
-                if (mostRecent > 0) {
-                    val current = map[pkg] ?: 0L
-                    if (mostRecent > current) {
-                        map[pkg] = mostRecent
-                    }
-                }
-            }
-        }
-
-        try {
-            val stats24h = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, now - USAGE_STATS_WINDOW_MS, now)
-            aggregate(stats24h)
-            val stats30d = usm.queryUsageStats(UsageStatsManager.INTERVAL_BEST, now - (30L * 24 * 60 * 60 * 1000L), now)
-            aggregate(stats30d)
-        } catch (_: Exception) {
-        }
-        return map
-    }
-
-    fun formatHoursAgo(lastTimeUsedMs: Long?, now: Long = System.currentTimeMillis()): String {
-        if (lastTimeUsedMs == null || lastTimeUsedMs <= 0L) return "no stats"
-        val diffMs = now - lastTimeUsedMs
-        if (diffMs < 0L) return "<1h ago"
-        val hours = diffMs / 3600000.0
-        return if (hours < 1.0) {
-            val mins = (diffMs / 60000L).coerceAtLeast(0)
-            "<1h ago (${mins}m)"
-        } else {
-            String.format(Locale.US, "%.1fh ago", hours)
-        }
-    }
-
-    fun computeNotRunningReason(
-        isCore: Boolean,
-        isStopped: Boolean,
-        killedAt: Long,
-        lastTimeUsedMs: Long?,
-        startTime7d: Long,
-        isAccessibilityObserved: Boolean,
-        hasUsageAccess: Boolean,
-    ): String {
-        if (isCore) {
-            return "core-blocked"
-        }
-        val mostRecent = lastTimeUsedMs ?: 0L
-        val wasKilledThisSession = killedAt > 0L && mostRecent <= killedAt
-        if (isStopped || wasKilledThisSession) {
-            return "stopped"
-        }
-        if (!hasUsageAccess && !isAccessibilityObserved) {
-            return "usage access not granted and not observed"
-        }
-        if (mostRecent > 0L && mostRecent < startTime7d) {
-            return "not active in 7-day window"
-        }
-        if (mostRecent <= 0L && !isAccessibilityObserved) {
-            return "no usage stats and not observed"
-        }
-        return "not active in 7-day window and not observed"
-    }
-
-    fun loadDiagnosticData(context: Context): KillerDiagnosticData {
-        val pm = context.packageManager
-        val packages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(0L))
-        } else {
-            @Suppress("DEPRECATION")
-            pm.getInstalledPackages(0)
-        }
-
-        val installedSet = packages.mapNotNull { it.packageName }.toSet()
-        val isA11yEnabled = isAccessibilityEnabled(context)
-        val hasUsage = hasUsageAccessPermission(context)
-
-        // 1. Accessibility observed
-        val observedPackages = AppKillerAccessibilityService.getObservedPackages(context)
-        val a11yObservedCount = observedPackages.count { installedSet.contains(it) && !AppCategories.isCore(it) }
-
-        // 2. UsageStats 7-day window
-        val usageStats7dActive = getActivePackagesFromUsageStats(context, USAGE_STATS_WINDOW_MS)
-        val usageStatsCount = usageStats7dActive.size
-
-        // 3. ActivityManager fallback
-        val amFallbackPackages = getActivityManagerRunningPackages(context)
-        val amFallbackCount = amFallbackPackages.count { installedSet.contains(it) && !AppCategories.isCore(it) }
-
-        // Active packages union (signals)
-        val activePackages = getActivePackages(context, installedSet)
-
-        // UsageStats for lastTimeUsed
-        val usageStatsMap = queryAllUsageStats(context)
-
-        val now = System.currentTimeMillis()
-        val startTime7d = now - USAGE_STATS_WINDOW_MS
-
-        val diagnosticApps = ArrayList<AppDiagnosticInfo>(packages.size)
-
-        for (pkgInfo in packages) {
-            val pkg = pkgInfo.packageName ?: continue
-            val appInfo = pkgInfo.applicationInfo
-
-            val label = try {
-                appInfo?.loadLabel(pm)?.toString()?.takeIf { it.isNotBlank() }
-            } catch (_: Exception) {
-                null
-            } ?: pkg
-
-            val isSystem = appInfo != null && (
-                (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-            )
-
-            val isStopped = isStopped(appInfo)
-
-            val lastTimeUsedMs = usageStatsMap[pkg]
-            val lastTimeUsedFormatted = formatHoursAgo(lastTimeUsedMs, now)
-
-            val isObserved = observedPackages.contains(pkg)
-            val isActive = activePackages.contains(pkg)
-
-            // Single source of truth predicate (Item 2)
-            val inRunning = AppCategories.isRunning(
-                packageName = pkg,
-                isStopped = isStopped,
-                isActive = isActive,
-            )
-
-            val isCore = AppCategories.isCore(pkg)
-            val killedAt = getPackageLastKilledTimestamp(pkg)
-
-            val notRunningReason = if (!inRunning) {
-                computeNotRunningReason(
-                    isCore = isCore,
-                    isStopped = isStopped,
-                    killedAt = killedAt,
-                    lastTimeUsedMs = lastTimeUsedMs,
-                    startTime7d = startTime7d,
-                    isAccessibilityObserved = isObserved,
-                    hasUsageAccess = hasUsage,
-                )
-            } else {
-                null
-            }
-
-            diagnosticApps.add(
-                AppDiagnosticInfo(
-                    packageName = pkg,
-                    label = label,
-                    isSystem = isSystem,
-                    lastTimeUsedMs = lastTimeUsedMs,
-                    lastTimeUsedFormatted = lastTimeUsedFormatted,
-                    isAccessibilityObserved = isObserved,
-                    isStopped = isStopped,
-                    inRunning = inRunning,
-                    notRunningReason = notRunningReason,
-                    isActive = isActive,
-                ),
-            )
-        }
-
-        diagnosticApps.sortBy { it.label.lowercase() }
-
-        val runningCount = diagnosticApps.count { it.inRunning }
-
-        return KillerDiagnosticData(
-            isAccessibilityEnabled = isA11yEnabled,
-            isUsageAccessGranted = hasUsage,
-            totalInstalledApps = packages.size,
-            usageStatsCount = usageStatsCount,
-            accessibilityObservedCount = a11yObservedCount,
-            activityManagerFallbackCount = amFallbackCount,
-            runningCount = runningCount,
-            apps = diagnosticApps,
-        )
-    }
-
     fun isNodeOrAncestorClickable(node: AccessibilityNodeInfo): Boolean {
         var p: AccessibilityNodeInfo? = node
         while (p != null) {
@@ -738,7 +526,7 @@ object AppKillerEngine {
         // 1. Enforce CORE blocklist in engine
         for (pkg in packagesToKill) {
             if (AppCategories.isCore(pkg) || isLauncher(context, pkg) || pkg in protectedPackages ||
-                KeepSafe.reasonToKeep(context, pkg, appLabels[pkg] ?: pkg) != null) {
+                KeepSafe.reasonToKeep(context, pkg) != null) {
                 skipped.add(pkg to "Protected")
             } else {
                 eligible.add(pkg)
@@ -772,7 +560,7 @@ object AppKillerEngine {
 
             // Recheck live signals immediately before opening Settings, not just at queue creation.
             if (isLauncher(context, pkg) || pkg in protectedPackages ||
-                KeepSafe.reasonToKeep(context, pkg, label) != null) {
+                KeepSafe.reasonToKeep(context, pkg) != null) {
                 skipped.add(pkg to "Protected")
                 continue
             }
@@ -781,6 +569,7 @@ object AppKillerEngine {
             if (isPackageStopped(context, pkg)) {
                 markPackageKilled(context, pkg)
                 skipped.add(pkg to "Already stopped")
+                Log.d("Killer", "engine: $label already stopped")
                 continue
             }
 
@@ -837,7 +626,7 @@ object AppKillerEngine {
                             break
                         }
                         // Signals can change while Settings is opening.
-                        if (KeepSafe.reasonToKeep(context, pkg, label) != null ||
+                        if (KeepSafe.reasonToKeep(context, pkg) != null ||
                             isLauncher(context, pkg) || pkg in protectedPackages) {
                             skipped.add(pkg to "Protected")
                             forceStopFound = true
@@ -860,6 +649,7 @@ object AppKillerEngine {
 
             if (!forceStopFound) {
                 skipped.add(pkg to "Force Stop button not found (timed out)")
+                Log.d("Killer", "engine: $label Force Stop button not found (timed out)")
                 continue
             }
 
@@ -882,7 +672,7 @@ object AppKillerEngine {
                         delay(100)
                         continue
                     }
-                    if (KeepSafe.reasonToKeep(context, pkg, label) != null ||
+                    if (KeepSafe.reasonToKeep(context, pkg) != null ||
                         isLauncher(context, pkg) || pkg in protectedPackages) break
                     val confirmBtn = if (hasCancelButton(root)) findConfirmationDialogButton(root) else null
                     if (confirmBtn != null && isNodeAndAncestorsEnabled(confirmBtn)) {
@@ -904,8 +694,10 @@ object AppKillerEngine {
                 if (confirmed) {
                     markPackageKilled(context, pkg)
                     killed.add(pkg)
+                    Log.d("Killer", "engine: $label killed")
                 } else {
                     skipped.add(pkg to "Could not verify force stop")
+                    Log.d("Killer", "engine: $label could not verify force stop")
                 }
                 delay(150)
             }
