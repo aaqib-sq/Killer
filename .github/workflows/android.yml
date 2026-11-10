@@ -59,6 +59,23 @@ jobs:
             grep -E "[0-9]+ tests? completed|FAILED|AssertionError|expected:" gradle-test.log | head -n 20
           } | while IFS= read -r line; do echo "::error::$(echo "$line" | cut -c1-900)"; done || true
 
+      # Signature lock (Slice 9): restore the stable debug keystore from the
+      # repo secret so every build shares one signature and installs as an
+      # update (no uninstall, no lost permissions). The keystore is never in
+      # the tree (.gitignore). Without the secret, the build falls back to
+      # Gradle's ephemeral debug keystore.
+      - name: Restore stable debug keystore
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            mkdir -p keystore
+            echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > keystore/debug.keystore
+            echo "Stable debug keystore restored."
+          else
+            echo "No DEBUG_KEYSTORE_BASE64 secret; using ephemeral debug signing."
+          fi
+
       - name: Assemble debug APK
         run: |
           set -o pipefail

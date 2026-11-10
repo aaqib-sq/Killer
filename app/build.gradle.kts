@@ -17,6 +17,27 @@ android {
         resourceConfigurations += listOf("en")
     }
 
+    // Signature lock (Slice 9, user order): every CI debug build signs with
+    // the SAME debug keystore, so a new build installs as an update instead
+    // of forcing an uninstall (which wipes accessibility / usage-access /
+    // overlay permissions). The keystore itself is NEVER in the tree
+    // (.gitignore: "Signing material — never in the tree"); CI restores it
+    // from the repo secret DEBUG_KEYSTORE_BASE64 (see android.yml). It is a
+    // debug-only keystore with the standard public "android" passwords, never
+    // a release key. When the keystore file is absent (fresh clone, no secret
+    // yet), Gradle falls back to its default ephemeral debug keystore.
+    signingConfigs {
+        getByName("debug") {
+            val keystoreFile = file("../keystore/debug.keystore")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false

@@ -16,13 +16,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
 import dev.killer.ui.screens.ClosingScreen
@@ -38,7 +38,12 @@ import kotlinx.coroutines.delay
  */
 @Composable
 fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    // Slice 9: collectAsState(), NOT collectAsStateWithLifecycle(). The
+    // lifecycle-gated version pauses while MainActivity is STOPPED (Settings
+    // in the foreground) and freezes the Closing screen at App 4 — exactly
+    // the frozen frame the user saw during transitions. The Closing screen
+    // must keep updating while Settings is in front.
+    val state by viewModel.state.collectAsState()
 
     BackHandler(enabled = state.screen == Screen.Closing) {
         when (state.screen) {
@@ -134,6 +139,7 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         overlayAvailable = state.overlayAvailable,
                         overlayReshows = state.overlayReshows,
                         overlayHideLog = state.overlayHideLog,
+                        overlayGeometry = state.overlayGeometry,
                         onCancel = viewModel::cancelClosing,
                         onBackHome = viewModel::goHome,
                         onUndo = viewModel::undo,

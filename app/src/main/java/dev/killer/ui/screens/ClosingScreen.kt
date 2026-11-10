@@ -74,6 +74,8 @@ fun ClosingScreen(
     overlayReshows: Int,
     /** Unusual overlay hide() calls during this run. */
     overlayHideLog: List<String>,
+    /** Overlay window geometry at Done (size + attached/shown). */
+    overlayGeometry: String,
     onCancel: () -> Unit,
     onBackHome: () -> Unit,
     onUndo: () -> Unit,
@@ -200,6 +202,14 @@ fun ClosingScreen(
         if (done && overlayHideLog.isNotEmpty()) {
             Text(
                 text = "Overlay hataya gaya: ${overlayHideLog.first()}",
+                color = KillerColors.TextSecondary,
+                fontSize = KillerType.Body,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (done && overlayGeometry.isNotEmpty()) {
+            Text(
+                text = "Overlay: $overlayGeometry",
                 color = KillerColors.TextSecondary,
                 fontSize = KillerType.Body,
                 textAlign = TextAlign.Center,
