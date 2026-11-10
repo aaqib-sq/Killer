@@ -1,0 +1,102 @@
+--- AppKillerEngine.kt
++++ AppKillerEngine.kt
+@@ -699,0 +700,25 @@
++    /** Avoid acting on a stale Settings page from the previous queue item. */
++    fun containsAppLabel(root: AccessibilityNodeInfo, label: String): Boolean {
++        val stack = ArrayDeque<AccessibilityNodeInfo>()
++        stack.add(root)
++        while (stack.isNotEmpty()) {
++            val node = stack.removeFirst()
++            if (node.text?.toString()?.trim()?.equals(label, ignoreCase = true) == true ||
++                node.contentDescription?.toString()?.trim()?.equals(label, ignoreCase = true) == true) return true
++            for (i in 0 until node.childCount) node.getChild(i)?.let { stack.add(it) }
++        }
++        return false
++    }
++
++    /** Null means the package manager failed; callers must fail closed. */
++    fun launcherPackages(context: Context): Set<String>? = try {
++        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
++        context.packageManager.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0L))
++            .mapNotNull { it.activityInfo?.packageName }.toSet()
++    } catch (_: Exception) {
++        null
++    }
++
++    fun isLauncher(context: Context, packageName: String): Boolean =
++        launcherPackages(context)?.contains(packageName) ?: true
++
+@@ -703,0 +729 @@
++        protectedPackages: Set<String> = emptySet(),
+@@ -714,2 +740,3 @@
+-            if (AppCategories.isCore(pkg)) {
+-                skipped.add(pkg to "Core system package (protected)")
++            if (AppCategories.isCore(pkg) || isLauncher(context, pkg) || pkg in protectedPackages ||
++                KeepSafe.reasonToKeep(context, pkg, appLabels[pkg] ?: pkg) != null) {
++                skipped.add(pkg to "Protected")
+@@ -745,0 +773,7 @@
++            // Recheck live signals immediately before opening Settings, not just at queue creation.
++            if (isLauncher(context, pkg) || pkg in protectedPackages ||
++                KeepSafe.reasonToKeep(context, pkg, label) != null) {
++                skipped.add(pkg to "Protected")
++                continue
++            }
++
+@@ -752,0 +787,11 @@
++            val details = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
++                data = Uri.fromParts("package", pkg, null)
++            }
++            val settingsPackage = context.packageManager.resolveActivity(
++                details, PackageManager.ResolveInfoFlags.of(0L)
++            )?.activityInfo?.packageName
++            if (settingsPackage == null) {
++                skipped.add(pkg to "Settings app not found")
++                continue
++            }
++
+@@ -782,0 +828,4 @@
++                    // Require both the resolved Settings package and this app's title.
++                    // If an OEM hides the title, skip rather than stop the wrong app.
++                    if (root.packageName?.toString() != settingsPackage ||
++                        !containsAppLabel(root, label)) continue
+@@ -789,0 +839,7 @@
++                        // Signals can change while Settings is opening.
++                        if (KeepSafe.reasonToKeep(context, pkg, label) != null ||
++                            isLauncher(context, pkg) || pkg in protectedPackages) {
++                            skipped.add(pkg to "Protected")
++                            forceStopFound = true
++                            break
++                        }
+@@ -809,0 +866,5 @@
++            if (!forceStopClicked) {
++                if (skipped.none { it.first == pkg }) skipped.add(pkg to "Force Stop could not be clicked")
++                continue
++            }
++
+@@ -820 +881,7 @@
+-                    val confirmBtn = findConfirmationDialogButton(root)
++                    if (root.packageName?.toString() != settingsPackage) {
++                        delay(100)
++                        continue
++                    }
++                    if (KeepSafe.reasonToKeep(context, pkg, label) != null ||
++                        isLauncher(context, pkg) || pkg in protectedPackages) break
++                    val confirmBtn = if (hasCancelButton(root)) findConfirmationDialogButton(root) else null
+@@ -828,2 +895,15 @@
+-                markPackageKilled(context, pkg)
+-                killed.add(pkg)
++                // A click alone is not evidence of a successful stop (e.g. an
++                // unrecognized confirmation dialog). Count only FLAG_STOPPED.
++                var confirmed = isPackageStopped(context, pkg)
++                repeat(8) {
++                    if (!confirmed) {
++                        delay(100)
++                        confirmed = isPackageStopped(context, pkg)
++                    }
++                }
++                if (confirmed) {
++                    markPackageKilled(context, pkg)
++                    killed.add(pkg)
++                } else {
++                    skipped.add(pkg to "Could not verify force stop")
++                }

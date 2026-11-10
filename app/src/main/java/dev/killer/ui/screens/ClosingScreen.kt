@@ -19,6 +19,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -57,6 +64,8 @@ fun ClosingScreen(
     progress: Float,
     closedCount: Int,
     keptSafeCount: Int,
+    skippedCount: Int,
+    skippedDetails: List<String>,
     undoAvailable: Boolean,
     undoSecondsLeft: Int,
     onCancel: () -> Unit,
@@ -64,6 +73,13 @@ fun ClosingScreen(
     onUndo: () -> Unit,
 ) {
     val done = phase == ClosingPhase.Done
+    var showDetails by remember { mutableStateOf(false) }
+    if (showDetails) {
+        AlertDialog(onDismissRequest = { showDetails = false },
+            title = { Text("Not closed") },
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) { skippedDetails.forEach { Text(it) } } },
+            confirmButton = { TextButton(onClick = { showDetails = false }) { Text("Done") } })
+    }
 
     // The ring eases; it never jumps.
     val animated by animateFloatAsState(
@@ -133,7 +149,7 @@ fun ClosingScreen(
         Spacer(Modifier.height(24.dp))
 
         Text(
-            text = if (done) "Done. All quiet." else "Closing $currentLabel…",
+            text = if (done) "Done." else "Closing $currentLabel…",
             color = KillerColors.TextPrimary,
             fontSize = KillerType.Headline,
             fontWeight = FontWeight.ExtraBold,
@@ -146,16 +162,19 @@ fun ClosingScreen(
 
         Text(
             text = if (done) {
-                if (keptSafeCount > 0) "$closedCount apps closed • $keptSafeCount kept safe"
-                else "$closedCount apps closed"
+                "$closedCount apps closed • $keptSafeCount kept safe" +
+                    if (skippedCount > 0) " • $skippedCount not closed" else ""
             } else {
-                "Staying on this screen until it's finished."
+                "Settings screens appear while apps are closed."
             },
             color = KillerColors.TextSecondary,
             fontSize = KillerType.Body,
             textAlign = TextAlign.Center,
         )
 
+        if (done && skippedDetails.isNotEmpty()) {
+            TextButton(onClick = { showDetails = true }) { Text("See details") }
+        }
         Spacer(Modifier.height(20.dp))
 
         ProgressDots(index = index, total = total, done = done)

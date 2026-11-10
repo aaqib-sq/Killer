@@ -95,7 +95,7 @@ fun PermissionsScreen(
         PermissionCard(
             icon = { KillerIcons.Draw(KillerIcons.Hand, 24, KillerColors.TextPrimary) },
             title = "Close apps for you",
-            body = "So one tap can close them, instead of you swiping one by one. You can turn this off anytime.",
+            body = "So one tap can open Settings and force-stop the selected apps. You can turn this off anytime.",
             enabled = accessibility,
             onEnable = onEnableAccessibility,
         )

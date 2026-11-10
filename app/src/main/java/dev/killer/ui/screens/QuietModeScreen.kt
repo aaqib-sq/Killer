@@ -120,7 +120,7 @@ fun QuietModeScreen(
                 .padding(20.dp),
         ) {
             Text(
-                text = "${apps.size}",
+                text = "$closableCount",
                 color = KillerColors.TextPrimary,
                 fontSize = KillerType.DisplayNumber,
                 fontWeight = FontWeight.ExtraBold,
@@ -128,7 +128,7 @@ fun QuietModeScreen(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "apps making noise",
+                text = "apps available to close",
                 color = KillerColors.TextSecondary,
                 fontSize = KillerType.Body,
             )
@@ -185,6 +185,7 @@ fun QuietModeScreen(
             expanded = keptSafeExpanded,
             onToggle = onToggleKeptSafe,
             onUnkeep = onUnkeep,
+            onSeeAll = onBack,
         )
 
         Spacer(Modifier.height(24.dp))
@@ -258,6 +259,7 @@ private fun KeptSafeCard(
     expanded: Boolean,
     onToggle: () -> Unit,
     onUnkeep: (String) -> Unit,
+    onSeeAll: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -324,7 +326,13 @@ private fun KeptSafeCard(
                                 fontWeight = FontWeight.Bold,
                             )
                             Spacer(Modifier.weight(1f))
-                            KillerIcons.Draw(KillerIcons.Lock, 14, KillerColors.Mint)
+                            if (row.isKept) {
+                                KillerIcons.Draw(KillerIcons.Lock, 14, KillerColors.Mint)
+                            } else {
+                                val interaction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                                Text("Unkeep", color = KillerColors.Coral,
+                                    modifier = Modifier.clickableNoRipple(true, interaction) { onUnkeep(row.packageName) }.padding(8.dp))
+                            }
                         }
                     }
                 }
@@ -337,6 +345,7 @@ private fun KeptSafeCard(
                     color = KillerColors.TextSecondary,
                     fontSize = KillerType.Pill,
                     fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickableNoRipple(true, androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, onSeeAll).padding(vertical = 8.dp),
                 )
             }
         }

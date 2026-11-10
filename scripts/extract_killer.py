@@ -5,11 +5,12 @@ Extract the Killer engine from TRMX-GUI main (PR #70, merge 09c8f722) into dev.k
 The engine is copied verbatim except for:
   * package rename  dev.trmx.gui.killer -> dev.killer.engine
   * TRMX/Termux dependencies removed (bridge packages, MainActivity return intent)
-  * the Force Stop automation replaced by Recents dismissal (never force-stop)
+  * MainActivity return intent retargeted to Killer
+  * scripts/patches/trmx-engine-safety.patch adds Killer safety and result checks
 
 Usage: python3 scripts/extract_killer.py <trmx-killer-dir> <dest-dir>
 """
-import re, sys, pathlib
+import re, sys, pathlib, subprocess
 
 SRC = pathlib.Path(sys.argv[1])
 DST = pathlib.Path(sys.argv[2])
@@ -41,12 +42,16 @@ svc = rename_pkg(read("AppKillerAccessibilityService.kt"))
 (DST / "AppKillerAccessibilityService.kt").write_text(svc, encoding="utf-8")
 
 # ------------------------------------------------------------ AppKillerEngine.kt
-eng = rename_pkg(read("AppKillerEngine.kt"))
+eng = rename_pkg(read("AppKillerEngine.kt")).replace("import dev.trmx.gui.MainActivity", "import dev.killer.MainActivity")
 (DST / "AppKillerEngine.kt").write_text(eng, encoding="utf-8")
 
 # --------------------------------------------------------- AppKillerViewModel.kt
 vm = rename_pkg(read("AppKillerViewModel.kt"))
 (DST / "AppKillerViewModel.kt").write_text(vm, encoding="utf-8")
+
+# Apply the maintained, reviewable adaptation after the verbatim port.
+patch = pathlib.Path(__file__).resolve().parent / "patches" / "trmx-engine-safety.patch"
+subprocess.run(["patch", "--batch", "--forward", "-d", str(DST.resolve()), "-p0", "-i", str(patch)], check=True)
 
 for p in sorted(DST.iterdir()):
     print(f"{p.name:40s} {len(p.read_text().splitlines()):5d} lines")

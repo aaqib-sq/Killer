@@ -32,8 +32,8 @@ class KillerCopyTest {
             }
         }.lowercase()
 
-        // No boosting, no fake memory numbers, no force-stop claims.
-        listOf("gb", "boost", "ram", "force", "force-stop", "%").forEach { word ->
+        // No boosting or fake memory numbers. Honest force-stop wording is allowed.
+        listOf("gb", "boost", "ram", "%").forEach { word ->
             assertTrue(
                 "Forbidden claim '$word' must not appear in user-facing copy",
                 !allCopy.contains(word),

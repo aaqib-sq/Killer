@@ -29,12 +29,18 @@ object KeepSafe {
 
         val functions = functionsOf(packageName, label)
 
-        if (isCallActive(context) && KeptFunction.PhoneCall in functions) return KeepReason.PhoneCall
-        if (isMusicActive(context) && KeptFunction.Music in functions) return KeepReason.MusicPlaying
-        if (KeptFunction.Maps in functions) return KeepReason.Navigating
-        if (KeptFunction.Alarm in functions && hasPendingAlarm(context)) return KeepReason.Alarm
-        if (KeptFunction.Alarm in functions) return KeepReason.Timer
-        if (isDownloading(context) && packageName.contains("download")) return KeepReason.Downloading
+        // AudioManager reports device-wide activity, not the originating app. Keep
+        // every candidate while audio/call is active rather than guess a package.
+        if (isCallActive(context)) return KeepReason.CallActive
+        if (isMusicActive(context)) return KeepReason.AudioActive
+        // Android does not expose every app's navigation or timer state. A possible
+        // maps/clock app is kept conservatively; labels describe uncertainty.
+        if (KeptFunction.Maps in functions) return KeepReason.PossibleNavigation
+        if (KeptFunction.Alarm in functions) return KeepReason.PossibleTimer
+        if (pendingAlarmOwner(context) == packageName) return KeepReason.Alarm
+        // DownloadManager only exposes this app's downloads; no cross-app attribution
+        // is claimed. Keep apps with download-related names as a conservative fallback.
+        if (packageName.contains("download", ignoreCase = true)) return KeepReason.PossibleDownload
         return null
     }
 
@@ -59,6 +65,13 @@ object KeepSafe {
         mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION
     } catch (_: Exception) {
         false
+    }
+
+    fun pendingAlarmOwner(context: Context): String? = try {
+        val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        am?.nextAlarmClock?.showIntent?.creatorPackage
+    } catch (_: Exception) {
+        null
     }
 
     fun hasPendingAlarm(context: Context): Boolean = try {
@@ -111,7 +124,12 @@ enum class KeepReason(val label: String) {
     Timer("Timer running"),
     Alarm("Alarm set"),
     Downloading("Downloading"),
-    KillerItself("That's me"),
+    KillerItself("Core app"),
+    AudioActive("Music is active • kept safe"),
+    CallActive("Call is active • kept safe"),
+    PossibleNavigation("May be navigating"),
+    PossibleTimer("May have a timer or alarm"),
+    PossibleDownload("May be downloading"),
 }
 
 /** The functions an intention can protect. */
@@ -130,7 +148,7 @@ enum class Intention(
 ) {
     Focus(
         id = "focus",
-        title = "Focus for 25 min",
+        title = "Focus",
         description = "Quiet everything except what helps you focus.",
         keepLabel = "Keeps Music + Notes",
         keeps = setOf(KeptFunction.Music, KeptFunction.Notes),
@@ -146,8 +164,8 @@ enum class Intention(
     ),
     BatterySaver(
         id = "battery",
-        title = "Battery Saver",
-        description = "Hold on to charge. Keep only what gets you home.",
+        title = "Getting home",
+        description = "Keep what gets you home.",
         keepLabel = "Keeps Maps + Messages",
         keeps = setOf(KeptFunction.Maps, KeptFunction.Messaging),
         emoji = "🔋",

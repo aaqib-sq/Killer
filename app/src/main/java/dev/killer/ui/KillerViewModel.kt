@@ -22,7 +22,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Exactly four screens. Quiet Mode is opened from Home; it is not a fifth tab. */
-enum class Screen { Permissions, Home, Closing, QuietMode }
+enum class Screen { Permissions, Home, Closing, QuietMode, Diagnostics }
+enum class AppTab { Running, Other, Core }
 
 /** Closing screen phases, matching the concept's idle → running → done. */
 enum class ClosingPhase { Running, Done, Idle }
@@ -38,8 +39,8 @@ data class HomeApp(
 
     /** "Running, 42 min" / "Music playing, 18 min" — the concept's secondary line. */
     fun detail(): String {
-        val prefix = keepReason?.label ?: "Running"
-        return "$prefix, $runningMinutes min"
+        val prefix = keepReason?.label ?: "Detected"
+        return if (runningMinutes > 0) "$prefix • $runningMinutes min foreground in 7 days" else prefix
     }
 }
 
@@ -48,6 +49,9 @@ data class KillerUiState(
     val usageAccess: Boolean = false,
     val accessibility: Boolean = false,
     val apps: List<HomeApp> = emptyList(),
+    val otherApps: List<HomeApp> = emptyList(),
+    val coreApps: List<HomeApp> = emptyList(),
+    val tab: AppTab = AppTab.Running,
     val loading: Boolean = true,
     val phase: ClosingPhase = ClosingPhase.Idle,
     val closingLabel: String = "",
@@ -56,16 +60,32 @@ data class KillerUiState(
     val ringProgress: Float = 0f,
     val closedCount: Int = 0,
     val keptSafeCount: Int = 0,
+    val skippedCount: Int = 0,
+    val skippedDetails: List<String> = emptyList(),
+    val diagnostics: dev.killer.engine.KillerDiagnosticData? = null,
     val undoSecondsLeft: Int = 0,
     val undoAvailable: Boolean = false,
     val intention: Intention = Intention.Focus,
     val keptSafeExpanded: Boolean = false,
     val unkept: Set<String> = emptySet(),
     val toast: String? = null,
+    val query: String = "",
+    val selectedOther: Set<String> = emptySet(),
+    val pendingTargets: List<HomeApp> = emptyList(),
+    val pendingKept: List<HomeApp> = emptyList(),
 ) {
     val count: Int get() = apps.size
-    val closable: List<HomeApp> get() = apps.filter { !it.isKept && it.packageName !in unkept }
-    val keptRows: List<HomeApp> get() = apps.filter { it.isKept || it.packageName in unkept }
+    val closable: List<HomeApp> get() = apps.filter { !it.isKept }
+    val keptRows: List<HomeApp> get() = apps.filter { it.isKept }
+    val quietKeptRows: List<HomeApp> get() = apps.filter {
+        it.isKept || (it.packageName !in unkept && KeepSafe.keptByIntention(it.packageName, it.label, intention))
+    }
+    val quietTargets: List<HomeApp> get() = apps.filterNot { app -> quietKeptRows.any { it.packageName == app.packageName } }
+    val visibleApps: List<HomeApp> get() = when (tab) {
+        AppTab.Running -> apps
+        AppTab.Other -> otherApps
+        AppTab.Core -> coreApps
+    }
 }
 
 class KillerViewModel(app: Application) : AndroidViewModel(app) {
@@ -78,6 +98,8 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
 
     private var closeJob: Job? = null
     private var undoJob: Job? = null
+    private var loadJob: Job? = null
+    private var confirmedInSession = false
 
     init {
         _state.update { it.copy(screen = startScreen()) }
@@ -90,15 +112,13 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshPermissions() {
         val usage = AppKillerEngine.hasUsageAccessPermission(context)
         val a11y = AppKillerEngine.isAccessibilityEnabled(context)
-        val wasSetup = !setupDone()
         _state.update {
             it.copy(
                 usageAccess = usage,
                 accessibility = a11y,
-                screen = if (wasSetup && usage && a11y) Screen.Home else it.screen,
+                screen = if ((!usage || !a11y) && it.screen != Screen.Closing) Screen.Permissions else it.screen,
             )
         }
-        if (wasSetup && usage && a11y) markSetupDone()
     }
 
     fun openUsageAccessSettings() = AppKillerEngine.openUsageAccessSettings(context)
@@ -106,6 +126,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     fun openAccessibilitySettings() = AppKillerEngine.openAccessibilitySettings(context)
 
     fun continueFromPermissions() {
+        if (!_state.value.usageAccess || !_state.value.accessibility) return
         markSetupDone()
         _state.update { it.copy(screen = Screen.Home) }
         loadApps()
@@ -120,29 +141,30 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------------ apps
 
     fun loadApps() {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             val rows = withContext(Dispatchers.IO) {
                 // The extracted engine does detection: core filter, stopped check,
                 // accessibility observations, UsageStats window, ActivityManager union.
                 val installed = AppKillerEngine.loadInstalledApps(context)
-                    .filter { AppCategories.isRunning(it) && !AppCategories.isCore(it.packageName) }
-
                 val minutes = foregroundMinutes()
-
-                installed.map { info ->
-                    HomeApp(
-                        packageName = info.packageName,
-                        label = info.label,
-                        runningMinutes = minutes[info.packageName] ?: 0L,
-                        keepReason = KeepSafe.reasonToKeep(context, info.packageName, info.label),
-                    )
-                }.sortedWith(
-                    compareByDescending<HomeApp> { it.isKept }
-                        .thenByDescending { it.runningMinutes }
-                        .thenBy { it.label.lowercase() },
+                val launchers = AppKillerEngine.launcherPackages(context)
+                fun isLauncher(packageName: String) = launchers?.contains(packageName) ?: true
+                fun row(info: AppInfo): HomeApp = HomeApp(
+                    packageName = info.packageName,
+                    label = info.label,
+                    runningMinutes = minutes[info.packageName] ?: 0L,
+                    keepReason = if (AppCategories.isCore(info.packageName) || isLauncher(info.packageName))
+                        KeepReason.KillerItself else KeepSafe.reasonToKeep(context, info.packageName, info.label),
                 )
+                val running = installed.filter { AppCategories.isRunning(it) && !isLauncher(it.packageName) }
+                    .map(::row).sortedWith(compareByDescending<HomeApp> { it.isKept }.thenBy { it.label.lowercase() })
+                val other = installed.filter { AppCategories.belongsToOtherTab(it) && !isLauncher(it.packageName) }.map(::row)
+                val core = installed.filter { it.packageName != context.packageName && (AppCategories.isCore(it.packageName) || isLauncher(it.packageName)) }.map(::row)
+                Triple(running, other, core)
             }
-            _state.update { it.copy(apps = rows, loading = false) }
+            _state.update { it.copy(apps = rows.first, otherApps = rows.second, coreApps = rows.third, loading = false,
+                selectedOther = it.selectedOther.intersect(rows.second.filterNot { row -> row.isKept }.map { row -> row.packageName }.toSet())) }
         }
     }
 
@@ -172,13 +194,34 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun goHome() {
-        _state.update { it.copy(screen = Screen.Home, phase = ClosingPhase.Idle) }
+        _state.update { it.copy(screen = if (it.usageAccess && it.accessibility) Screen.Home else Screen.Permissions, phase = ClosingPhase.Idle, tab = AppTab.Running) }
         loadApps()
+    }
+
+    fun setQuery(query: String) = _state.update { it.copy(query = query) }
+    fun toggleOther(packageName: String) = _state.update {
+        it.copy(selectedOther = if (packageName in it.selectedOther) it.selectedOther - packageName else it.selectedOther + packageName)
+    }
+    fun selectOther() = _state.update { it.copy(selectedOther = it.otherApps.filterNot { row -> row.isKept }.map { row -> row.packageName }.toSet()) }
+    fun clearOther() = _state.update { it.copy(selectedOther = emptySet()) }
+    fun closeSelectedOther() {
+        val s = _state.value
+        startClosing(s.otherApps.filter { it.packageName in s.selectedOther && !it.isKept }, s.keptRows)
+    }
+
+    fun setTab(tab: AppTab) = _state.update { it.copy(tab = tab) }
+
+    fun openDiagnostics() {
+        _state.update { it.copy(screen = Screen.Diagnostics, diagnostics = null) }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { AppKillerEngine.loadDiagnosticData(context) }
+            _state.update { it.copy(diagnostics = result) }
+        }
     }
 
     fun openQuietMode() = _state.update { it.copy(screen = Screen.QuietMode, keptSafeExpanded = false) }
 
-    fun setIntention(intention: Intention) = _state.update { it.copy(intention = intention) }
+    fun setIntention(intention: Intention) = _state.update { it.copy(intention = intention, unkept = emptySet()) }
 
     fun toggleKeptSafe() = _state.update { it.copy(keptSafeExpanded = !it.keptSafeExpanded) }
 
@@ -190,38 +233,36 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
 
     // --------------------------------------------------------------- closing
 
-    /** Close one app: the card leaves the list, the count drops, no full-screen moment. */
+    /** Per-app close uses the same protected engine and report as Close All. */
     fun closeOne(app: HomeApp) {
-        if (app.isKept || app.packageName in _state.value.unkept) return
-        viewModelScope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                AppKillerAccessibilityService.instance
-                    ?.dismissFromRecents(app.label, app.packageName) ?: false
-            }
-            _state.update {
-                it.copy(
-                    toast = if (ok) "${app.label} closed" else "Couldn't close ${app.label} — not in Recents",
-                )
-            }
-            loadApps()
-        }
+        if (!app.isKept) startClosing(listOf(app), _state.value.keptRows)
     }
 
     fun closeAll() = startClosing(_state.value.closable, _state.value.keptRows)
 
     fun makeItQuiet() {
         val s = _state.value
-        val kept = s.apps.filter {
-            it.isKept || it.packageName in s.unkept ||
-                KeepSafe.keptByIntention(it.packageName, it.label, s.intention)
-        }
-        val keptNames = kept.map { it.packageName }.toSet()
-        val targets = s.apps.filterNot { it.packageName in keptNames }
-        startClosing(targets, kept)
+        startClosing(s.quietTargets, s.quietKeptRows)
+    }
+
+    fun dismissConfirmation() = _state.update { it.copy(pendingTargets = emptyList(), pendingKept = emptyList()) }
+    fun confirmClosing() {
+        val s = _state.value
+        confirmedInSession = true
+        dismissConfirmation()
+        startClosing(s.pendingTargets, s.pendingKept)
     }
 
     private fun startClosing(targets: List<HomeApp>, kept: List<HomeApp>) {
-        if (closeJob?.isActive == true) return
+        if (closeJob?.isActive == true || targets.isEmpty()) return
+        if (!confirmedInSession) {
+            _state.update { it.copy(pendingTargets = targets, pendingKept = kept) }
+            return
+        }
+        if (!_state.value.usageAccess || !_state.value.accessibility) {
+            _state.update { it.copy(screen = Screen.Permissions) }
+            return
+        }
         undoJob?.cancel()
 
         _state.update {
@@ -233,6 +274,8 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 ringProgress = 0f,
                 closingLabel = targets.firstOrNull()?.label ?: "",
                 closedCount = 0,
+                skippedCount = 0,
+                skippedDetails = emptyList(),
                 keptSafeCount = kept.size,
                 undoAvailable = false,
                 undoSecondsLeft = 0,
@@ -240,6 +283,8 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         closeJob = viewModelScope.launch {
+            // Let the Closing UI render before launching the system Settings UI.
+            delay(400)
             val labels = targets.associate { it.packageName to it.label }
 
             val report = withContext(Dispatchers.IO) {
@@ -249,6 +294,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                     context = context,
                     packagesToKill = targets.map { it.packageName },
                     appLabels = labels,
+                    protectedPackages = kept.map { it.packageName }.toSet(),
                     onProgress = { p ->
                         val fraction = if (p.total == 0) 0f else (p.current - 1).toFloat() / p.total
                         _state.update {
@@ -268,9 +314,12 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
             _state.update {
                 it.copy(
                     phase = ClosingPhase.Done,
+                    selectedOther = emptySet(),
                     ringProgress = 1f,
                     closedCount = report.killed.size,
-                    keptSafeCount = kept.size,
+                    skippedCount = report.skipped.count { it.second != "Protected" },
+                    skippedDetails = report.skipped.map { (pkg, reason) -> "${labels[pkg] ?: pkg}: $reason" },
+                    keptSafeCount = kept.size + report.skipped.count { it.second == "Protected" },
                     undoAvailable = report.killed.isNotEmpty(),
                     undoSecondsLeft = if (report.killed.isNotEmpty()) 5 else 0,
                 )
@@ -325,7 +374,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(undoAvailable = false, undoSecondsLeft = 0, screen = Screen.Home, phase = ClosingPhase.Idle)
         }
         loadApps()
-        showToast("Brought back")
+        showToast("List refreshed")
     }
 
     fun dismissToast() = _state.update { it.copy(toast = null) }

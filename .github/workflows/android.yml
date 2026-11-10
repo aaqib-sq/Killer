@@ -110,25 +110,14 @@ jobs:
           echo "$BADGING" | grep -qE "^(sdkVersion|minSdkVersion):'33'" || fail "wrong minSdk"
           echo "$BADGING" | grep -q "targetSdkVersion:'34'" || fail "wrong targetSdk"
 
-      # The concept forbids invented numbers and force-stop claims. The honest
-      # disclaimer ("It never force-stops apps") is allowed; a claim is not.
-      - name: No forbidden claims in the shipped APK
+      # Check resource and dex strings, including Compose copy compiled into dex.
+      - name: No forbidden claims in shipped copy
         run: |
           set -euo pipefail
+          python3 scripts/test_check_claims.py
           APK=$(find app/build/outputs/apk/debug -name '*.apk' | head -n 1)
           AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
-          # Dump only the string resources that ship to the user, then drop the
-          # negated disclaimers, which are the opposite of a claim.
-          "$AAPT" dump strings "$APK" \
-            | sed -E 's/(never|no|not)[[:space:]]+force[[:space:]]*-?[[:space:]]*stops?//Ig' \
-            > /tmp/shipped-strings.txt
-          if grep -inE "force[[:space:]]*-?[[:space:]]*stop|boost|gb freed|free[[:space:]]+up" /tmp/shipped-strings.txt; then
-            echo "::error::forbidden claim found in the APK"; exit 1
-          fi
-          if grep -nE "\bRAM\b|\bMB\b" /tmp/shipped-strings.txt; then
-            echo "::error::memory figure in the APK"; exit 1
-          fi
-          echo "no forbidden claims in the APK"
+          python3 scripts/check_claims.py --apk "$APK" --aapt "$AAPT"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

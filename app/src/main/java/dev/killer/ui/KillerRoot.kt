@@ -1,5 +1,6 @@
 package dev.killer.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,6 +25,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
+import dev.killer.ui.screens.DiagnosticsScreen
 import dev.killer.ui.screens.ClosingScreen
 import dev.killer.ui.screens.HomeScreen
 import dev.killer.ui.screens.PermissionsScreen
@@ -38,6 +42,15 @@ import kotlinx.coroutines.delay
 fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    BackHandler(enabled = state.screen == Screen.Closing || state.screen == Screen.QuietMode || state.screen == Screen.Diagnostics) {
+        when (state.screen) {
+            Screen.Closing -> if (state.phase == ClosingPhase.Running) viewModel.cancelClosing() else viewModel.goHome()
+            Screen.QuietMode, Screen.Diagnostics -> viewModel.goHome()
+            Screen.Permissions -> if (state.usageAccess && state.accessibility) viewModel.continueFromPermissions()
+            Screen.Home -> Unit
+        }
+    }
+
     // Returning from a system settings page must re-read the permissions.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshPermissions()
@@ -52,6 +65,16 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
             delay(2400)
             viewModel.dismissToast()
         }
+    }
+
+    if (state.pendingTargets.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissConfirmation,
+            title = { Text("Force stop ${state.pendingTargets.size} apps?") },
+            text = { Text("Killer opens Settings for each selected app and presses Force stop. You can cancel the queue.") },
+            confirmButton = { TextButton(onClick = viewModel::confirmClosing) { Text("Continue") } },
+            dismissButton = { TextButton(onClick = viewModel::dismissConfirmation) { Text("Cancel") } },
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize().background(KillerColors.Background)) {
@@ -74,7 +97,21 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                     )
 
                     Screen.Home -> HomeScreen(
-                        apps = state.apps,
+                        apps = state.visibleApps.filter { it.label.contains(state.query, true) || it.packageName.contains(state.query, true) },
+                        query = state.query,
+                        onQuery = viewModel::setQuery,
+                        selectedOther = state.selectedOther,
+                        onToggleOther = viewModel::toggleOther,
+                        onSelectOther = viewModel::selectOther,
+                        onClearOther = viewModel::clearOther,
+                        onCloseSelected = viewModel::closeSelectedOther,
+                        onRefresh = viewModel::loadApps,
+                        onDiagnostics = viewModel::openDiagnostics,
+                        runningCount = state.apps.size,
+                        closableCount = state.closable.size,
+                        loading = state.loading,
+                        tab = state.tab,
+                        onTab = viewModel::setTab,
                         onCloseOne = viewModel::closeOne,
                         onCloseAll = viewModel::closeAll,
                         onQuietMode = viewModel::openQuietMode,
@@ -88,6 +125,8 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         progress = state.ringProgress,
                         closedCount = state.closedCount,
                         keptSafeCount = state.keptSafeCount,
+                        skippedCount = state.skippedCount,
+                        skippedDetails = state.skippedDetails,
                         undoAvailable = state.undoAvailable,
                         undoSecondsLeft = state.undoSecondsLeft,
                         onCancel = viewModel::cancelClosing,
@@ -95,11 +134,13 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         onUndo = viewModel::undo,
                     )
 
+                    Screen.Diagnostics -> DiagnosticsScreen(state.diagnostics, viewModel::openDiagnostics, viewModel::goHome)
+
                     Screen.QuietMode -> QuietModeScreen(
                         apps = state.apps,
-                        closableCount = state.closable.size,
-                        keptCount = state.keptRows.size,
-                        keptRows = state.keptRows,
+                        closableCount = state.quietTargets.size,
+                        keptCount = state.quietKeptRows.size,
+                        keptRows = state.quietKeptRows,
                         intention = state.intention,
                         keptSafeExpanded = state.keptSafeExpanded,
                         onSelectIntention = viewModel::setIntention,
