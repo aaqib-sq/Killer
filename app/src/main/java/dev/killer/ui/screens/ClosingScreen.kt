@@ -42,7 +42,6 @@ import dev.killer.ui.ClosingPhase
 import dev.killer.ui.components.DepthHalo
 import dev.killer.ui.components.OutlineButton
 import dev.killer.ui.components.PrimaryButton
-import dev.killer.ui.components.SecondaryButton
 import dev.killer.ui.icons.KillerIcons
 import dev.killer.ui.overlay.overlayPositionText
 import dev.killer.ui.theme.KillerColors
@@ -54,7 +53,7 @@ import dev.killer.ui.theme.KillerType
  * Screen 3 — Closing. A full-screen moment, never a toast.
  * 220dp ring, 48sp percentage, the app being closed right now, a seek line
  * for the queue (Slice 7 — the dots are gone), Cancel while running;
- * Done state with mint ring + check + Undo for 5 seconds.
+ * Done state with mint ring + check.
  */
 @Composable
 fun ClosingScreen(
@@ -67,19 +66,8 @@ fun ClosingScreen(
     keptSafeCount: Int,
     skippedCount: Int,
     skippedDetails: List<String>,
-    undoAvailable: Boolean,
-    undoSecondsLeft: Int,
-    /** False when the progress overlay could not be shown (usually the "Display over other apps" permission is off on this install) — the Done screen says so plainly. */
-    overlayAvailable: Boolean,
-    /** How many times the overlay had to be brought back mid-loop (Slice 8). */
-    overlayReshows: Int,
-    /** Unusual overlay hide() calls during this run. */
-    overlayHideLog: List<String>,
-    /** Overlay window geometry at Done (size + attached/shown). */
-    overlayGeometry: String,
     onCancel: () -> Unit,
     onBackHome: () -> Unit,
-    onUndo: () -> Unit,
 ) {
     val done = phase == ClosingPhase.Done
     var showDetails by remember { mutableStateOf(false) }
@@ -190,38 +178,6 @@ fun ClosingScreen(
         if (done && skippedDetails.isNotEmpty()) {
             TextButton(onClick = { showDetails = true }) { Text("See details") }
         }
-        if (done && !overlayAvailable) {
-            Text(
-                text = "Progress overlay off tha — 'Display over other apps' on karo, warna progress sirf beech mein dikhega.",
-                color = KillerColors.TextSecondary,
-                fontSize = KillerType.Body,
-                textAlign = TextAlign.Center,
-            )
-        }
-        if (done && overlayReshows > 0) {
-            Text(
-                text = "Overlay $overlayReshows baar gayab hua — har baar wapas laya gaya.",
-                color = KillerColors.TextSecondary,
-                fontSize = KillerType.Body,
-                textAlign = TextAlign.Center,
-            )
-        }
-        if (done && overlayHideLog.isNotEmpty()) {
-            Text(
-                text = "Overlay hataya gaya: ${overlayHideLog.first()}",
-                color = KillerColors.TextSecondary,
-                fontSize = KillerType.Body,
-                textAlign = TextAlign.Center,
-            )
-        }
-        if (done && overlayGeometry.isNotEmpty()) {
-            Text(
-                text = "Overlay: $overlayGeometry",
-                color = KillerColors.TextSecondary,
-                fontSize = KillerType.Body,
-                textAlign = TextAlign.Center,
-            )
-        }
         Spacer(Modifier.height(20.dp))
 
         if (!done) {
@@ -243,17 +199,6 @@ fun ClosingScreen(
             OutlineButton(label = "Cancel", onClick = onCancel)
         } else {
             PrimaryButton(label = "Back to Home", onClick = onBackHome)
-            if (undoAvailable) {
-                Spacer(Modifier.height(12.dp))
-                SecondaryButton(
-                    label = "Undo (${undoSecondsLeft}s)",
-                    onClick = onUndo,
-                    enabled = undoSecondsLeft > 0,
-                ) {
-                    KillerIcons.Draw(KillerIcons.Undo, 18, KillerColors.TextPrimary)
-                    Spacer(Modifier.size(8.dp))
-                }
-            }
         }
 
         Spacer(Modifier.height(20.dp))

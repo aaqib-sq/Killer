@@ -210,39 +210,6 @@ fun OutlineButton(
     }
 }
 
-/** Surface-2 secondary action ("Back to Home", "Undo (5s)"). */
-@Composable
-fun SecondaryButton(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    height: Int = 60,
-    content: @Composable (() -> Unit)? = null,
-) {
-    val (scaleModifier, interaction) = tapScale()
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height.dp)
-            .then(scaleModifier)
-            .clip(RoundedCornerShape(KillerDimens.ButtonRadius))
-            .background(KillerColors.Surface2)
-            .clickableNoRipple(enabled, interaction, onClick)
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        content?.invoke()
-        Text(
-            text = label,
-            color = if (enabled) KillerColors.TextPrimary else KillerColors.TextMuted,
-            fontSize = KillerType.Button,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
 /** A card: 24dp radius, Surface fill, 1px border, 12dp+ inside. Slice 10: layered — light from above (Surface2 fading to Surface) + outer shadow, so the card has weight on the true-black canvas. */
 @Composable
 fun KillerCard(

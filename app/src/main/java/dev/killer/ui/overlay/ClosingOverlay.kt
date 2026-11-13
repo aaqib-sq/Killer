@@ -210,9 +210,6 @@ class ClosingOverlayController(
     /** How many times the window had to be brought back mid-loop (Slice 8). */
     var reshowCount: Int = 0
         private set
-    /** Every hide() call, with the app it happened on — the Done screen reports the unusual ones. */
-    private val hideLog = mutableListOf<String>()
-    val hideEvents: List<String> get() = hideLog.toList()
 
     /**
      * Shows the window and suspends until it is drawn (or a short timeout
@@ -310,7 +307,6 @@ class ClosingOverlayController(
     /** Clears the per-run counters before a new closing run starts. */
     fun resetRunStats() {
         reshowCount = 0
-        hideLog.clear()
     }
 
     /**
@@ -329,16 +325,6 @@ class ClosingOverlayController(
         windowContext = appContext
         windowManager = windowContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         useAccessibilityOverlay = false
-    }
-
-    /** One-line geometry for the Done report: size + whether the window is shown. */
-    fun geometryReport(): String {
-        val view = overlayView
-        return if (view == null) {
-            "no window"
-        } else {
-            "${view.width}×${view.height} · attached=${view.isAttachedToWindow} · shown=${view.isShown} · visibility=${view.windowVisibility}"
-        }
     }
 
     /**
@@ -369,7 +355,6 @@ class ClosingOverlayController(
             Handler(Looper.getMainLooper()).post { hide(reason) }
             return
         }
-        hideLog += "$reason @ app ${state.value.closingIndex}/${state.value.closingTotal}"
         collectJob?.cancel()
         collectJob = null
         overlayOwner?.onDestroy()

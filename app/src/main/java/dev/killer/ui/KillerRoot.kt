@@ -134,15 +134,8 @@ fun KillerRoot(viewModel: KillerViewModel = viewModel()) {
                         keptSafeCount = state.keptSafeCount,
                         skippedCount = state.skippedCount,
                         skippedDetails = state.skippedDetails,
-                        undoAvailable = state.undoAvailable,
-                        undoSecondsLeft = state.undoSecondsLeft,
-                        overlayAvailable = state.overlayAvailable,
-                        overlayReshows = state.overlayReshows,
-                        overlayHideLog = state.overlayHideLog,
-                        overlayGeometry = state.overlayGeometry,
                         onCancel = viewModel::cancelClosing,
                         onBackHome = viewModel::goHome,
-                        onUndo = viewModel::undo,
                     )
 
                 }

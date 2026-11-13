@@ -67,15 +67,6 @@ data class KillerUiState(
     val skippedCount: Int = 0,
     val skippedDetails: List<String> = emptyList(),
     /** True when the progress overlay window was actually shown for this run. False means closing fell back to the in-app screen (usually the overlay permission is off on this install) — the Done screen says so. */
-    val overlayAvailable: Boolean = false,
-    /** How many times the overlay had to be brought back mid-loop (Slice 8). */
-    val overlayReshows: Int = 0,
-    /** Unusual overlay hide() calls during this run (expected "done"/"finally" excluded) — the Done screen reports them. */
-    val overlayHideLog: List<String> = emptyList(),
-    /** Overlay window geometry at Done (size + attached/shown) — proves which window was on screen. */
-    val overlayGeometry: String = "",
-    val undoSecondsLeft: Int = 0,
-    val undoAvailable: Boolean = false,
     val toast: String? = null,
     val query: String = "",
     val selectedRunning: Set<String> = emptySet(),
@@ -102,7 +93,6 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<KillerUiState> = _state.asStateFlow()
 
     private var closeJob: Job? = null
-    private var undoJob: Job? = null
     private var loadJob: Job? = null
     private var confirmedInSession = false
 
@@ -272,7 +262,6 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(screen = Screen.Permissions) }
             return
         }
-        undoJob?.cancel()
 
         _state.update {
             it.copy(
@@ -286,12 +275,6 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 skippedCount = 0,
                 skippedDetails = emptyList(),
                 keptSafeCount = kept.size,
-                overlayAvailable = false,
-                overlayReshows = 0,
-                overlayHideLog = emptyList(),
-                overlayGeometry = "",
-                undoAvailable = false,
-                undoSecondsLeft = 0,
             )
         }
 
@@ -300,11 +283,7 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 // Show the progress overlay and confirm it is drawn BEFORE the
                 // first Settings intent fires. Without the overlay permission
                 // this returns false at once and closing falls back to the
-                // in-app Closing screen, exactly as before. The result is kept
-                // in state so the Done screen can say plainly when the overlay
-                // was off. (Slice 7 blamed the permission; the user confirmed
-                // it is ON — "Appear on top" — and the bug stayed, so the
-                // overlay's fate is now tracked per run instead of guessed.)
+                // in-app Closing screen, exactly as before.
                 // Slice 9: point the window at the running AccessibilityService
                 // (TYPE_ACCESSIBILITY_OVERLAY — the only type the system does
                 // not hide over Settings). Without the service, fall back to
@@ -319,7 +298,6 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val overlayShown = overlayController.showAndAwait()
                 Log.d("Killer", "startClosing: overlay shown=$overlayShown")
-                _state.update { it.copy(overlayAvailable = overlayShown) }
                 // Let the Closing UI render before launching the system Settings UI.
                 delay(400)
                 val labels = targets.associate { it.packageName to it.label }
@@ -365,16 +343,8 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
                         skippedCount = report.skipped.count { it.second != "Protected" },
                         skippedDetails = report.skipped.map { (pkg, reason) -> "${labels[pkg] ?: pkg}: $reason" },
                         keptSafeCount = kept.size + report.skipped.count { it.second == "Protected" },
-                        overlayReshows = overlayController.reshowCount,
-                        overlayHideLog = overlayController.hideEvents.filter {
-                            !it.startsWith("done") && !it.startsWith("finally")
-                        },
-                        overlayGeometry = overlayController.geometryReport(),
-                        undoAvailable = report.killed.isNotEmpty(),
-                        undoSecondsLeft = if (report.killed.isNotEmpty()) 5 else 0,
                     )
                 }
-                startUndoCountdown()
                 loadApps()
             } finally {
                 // Every exit path (Done, Cancel, error) removes the overlay.
@@ -390,19 +360,6 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
             delay(25)
             val v = from + (target - from) * (i.toFloat() / steps)
             _state.update { it.copy(ringProgress = v) }
-        }
-    }
-
-    private fun startUndoCountdown() {
-        undoJob?.cancel()
-        undoJob = viewModelScope.launch {
-            var left = 5
-            while (left > 0) {
-                delay(1000)
-                left--
-                _state.update { it.copy(undoSecondsLeft = left) }
-            }
-            _state.update { it.copy(undoAvailable = false) }
         }
     }
 
@@ -423,22 +380,11 @@ class KillerViewModel(app: Application) : AndroidViewModel(app) {
         loadApps()
     }
 
-    /** Undo clears the Done state and re-reads what is actually open. It never claims to relaunch apps. */
-    fun undo() {
-        undoJob?.cancel()
-        _state.update {
-            it.copy(undoAvailable = false, undoSecondsLeft = 0, screen = Screen.Home, phase = ClosingPhase.Idle)
-        }
-        loadApps()
-        showToast("List refreshed")
-    }
-
     fun dismissToast() = _state.update { it.copy(toast = null) }
 
     override fun onCleared() {
         overlayController.hide("cleared")
         closeJob?.cancel()
-        undoJob?.cancel()
         super.onCleared()
     }
 }
