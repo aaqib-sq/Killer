@@ -60,13 +60,6 @@ object KillerIcons {
     /** `X` — the one close affordance on an app card. */
     val X: ImageVector = lucide("X", "M18 6 6 18", "m6 6 12 12")
 
-    /** `Undo2` — the five-second Undo. */
-    val Undo: ImageVector = lucide(
-        "Undo2",
-        "M9 14 4 9l5-5",
-        "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11",
-    )
-
     /** `Lock` — each kept-safe row. */
     val Lock: ImageVector = lucide(
         "Lock",
